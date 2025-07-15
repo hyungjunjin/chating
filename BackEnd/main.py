@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +16,7 @@ load_dotenv()
 
 app = FastAPI()
 
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,10 +25,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 업로드 폴더 설정
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
+# 프론트엔드 빌드된 폴더 경로
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIST = (BASE_DIR / ".." / "FrontEnd" / "dist").resolve()
 INDEX_FILE = FRONTEND_DIST / "index.html"
@@ -36,11 +38,13 @@ INDEX_FILE = FRONTEND_DIST / "index.html"
 print(f"📁 FRONTEND_DIST: {FRONTEND_DIST}")
 print(f"📁 INDEX_FILE exists: {INDEX_FILE.exists()}")
 
+# 정적 파일 mount
 if FRONTEND_DIST.exists():
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIST), name="static")
 else:
-    print("⚠️  프론트엔드 dist 폴더가 존재하지 않습니다. 배포 전 빌드 필요")
+    print("⚠️  프론트엔드 dist 폴더가 존재하지 않습니다.")
 
+# DB 연결
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
@@ -82,7 +86,6 @@ async def shutdown():
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
-    print(f"🟢 {username} joined room {room_id}")
     if room_id not in clients:
         clients[room_id] = []
     clients[room_id].append(websocket)
@@ -90,29 +93,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     try:
         while True:
             data = await websocket.receive_text()
-            try:
-                msg_data = json.loads(data)
-                content = msg_data.get("content", "")
-                msg_type = msg_data.get("type", "text")
-            except Exception as e:
-                print("❌ 메시지 파싱 실패:", e)
-                continue
+            msg_data = json.loads(data)
+            content = msg_data.get("content", "")
+            msg_type = msg_data.get("type", "text")
 
-            try:
-                await app.state.db.execute(
-                    """
-                    INSERT INTO messages (room_id, username, content, type, created_at)
-                    VALUES ($1, $2, $3, $4, $5)
-                    """,
-                    room_id,
-                    username,
-                    content,
-                    msg_type,
-                    datetime.utcnow()
-                )
-            except Exception as e:
-                print("❌ DB 저장 실패:", e)
-                continue
+            await app.state.db.execute(
+                "INSERT INTO messages (room_id, username, content, type, created_at) VALUES ($1, $2, $3, $4, $5)",
+                room_id, username, content, msg_type, datetime.utcnow()
+            )
 
             payload = {
                 "sender": username,
@@ -132,51 +120,16 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                 clients[room_id].remove(dc)
 
     except WebSocketDisconnect:
-        print(f"🔌 {username} disconnected from {room_id}")
         clients[room_id].remove(websocket)
         if not clients[room_id]:
             del clients[room_id]
-
-@app.post("/messages")
-async def save_message(msg: Message):
-    try:
-        await app.state.db.execute(
-            """
-            INSERT INTO messages (room_id, username, content, type, created_at)
-            VALUES ($1, $2, $3, $4, $5)
-            """,
-            msg.room_id,
-            msg.username,
-            msg.content,
-            msg.type,
-            msg.created_at or datetime.utcnow()
-        )
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/messages/{room_id}")
-async def get_messages(room_id: str):
-    try:
-        rows = await app.state.db.fetch(
-            "SELECT * FROM messages WHERE room_id = $1 ORDER BY created_at ASC",
-            room_id
-        )
-        return [dict(row) for row in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/register")
 async def register_user(form: RegisterForm):
     try:
         await app.state.db.execute(
-            """
-            INSERT INTO users (name, username, password)
-            VALUES ($1, $2, $3)
-            """,
-            form.name,
-            form.username,
-            form.password
+            "INSERT INTO users (name, username, password) VALUES ($1, $2, $3)",
+            form.name, form.username, form.password
         )
         return {"status": "success", "message": "회원가입 성공!"}
     except asyncpg.UniqueViolationError:
@@ -193,12 +146,34 @@ async def login_user(form: LoginForm):
         raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
     return {"status": "success", "message": "로그인 성공!"}
 
+@app.post("/messages")
+async def save_message(msg: Message):
+    try:
+        await app.state.db.execute(
+            "INSERT INTO messages (room_id, username, content, type, created_at) VALUES ($1, $2, $3, $4, $5)",
+            msg.room_id, msg.username, msg.content, msg.type, msg.created_at or datetime.utcnow()
+        )
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/messages/{room_id}")
+async def get_messages(room_id: str):
+    try:
+        rows = await app.state.db.fetch(
+            "SELECT * FROM messages WHERE room_id = $1 ORDER BY created_at ASC",
+            room_id
+        )
+        return [dict(row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/check-username/{username}")
 async def check_username(username: str):
     user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
     if user:
-        return {"status": "success", "message": f"사용자 {username} 존재"}
-    raise HTTPException(status_code=404, detail=f"사용자 {username}가 존재하지 않습니다.")
+        return {"status": "success", "message": f"{username} 존재함"}
+    raise HTTPException(status_code=404, detail=f"{username} 존재하지 않음")
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -212,14 +187,18 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파일 저장 실패: {str(e)}")
 
+# ✅ SPA fallback: 정적 파일 이외에는 무조건 index.html 반환
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    if full_path.startswith(("api", "ws", "uploads")):
+    # ✅ 정적 파일, API, WebSocket 경로 제외
+    if full_path.startswith(("uploads", "ws", "api", "register", "login", "messages", "upload", "check-username")):
         raise HTTPException(status_code=404, detail="Not Found")
+
     if INDEX_FILE.exists():
         return FileResponse(INDEX_FILE)
     return {"detail": "Frontend not built"}
 
+# 로컬 실행용 (Render에서는 필요 없음)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
