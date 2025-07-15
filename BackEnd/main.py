@@ -12,10 +12,8 @@ from uuid import uuid4
 from dotenv import load_dotenv
 from pathlib import Path
 
-# .env 파일 로드
 load_dotenv()
 
-# FastAPI 앱 생성
 app = FastAPI()
 
 # CORS 설정
@@ -32,7 +30,7 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# 프론트엔드 빌드 파일 경로 설정
+# 프론트엔드 경로 설정
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIST = (BASE_DIR / ".." / "FrontEnd" / "dist").resolve()
 INDEX_FILE = FRONTEND_DIST / "index.html"
@@ -40,22 +38,10 @@ INDEX_FILE = FRONTEND_DIST / "index.html"
 print(f"📁 FRONTEND_DIST: {FRONTEND_DIST}")
 print(f"📁 INDEX_FILE exists: {INDEX_FILE.exists()}")
 
-# 프론트엔드 정적 파일 mount
 if FRONTEND_DIST.exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
 else:
     print("⚠️  프론트엔드 dist 폴더가 존재하지 않습니다. 배포 전 빌드 필요")
-
-# React SPA fallback
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    # API, WebSocket 요청은 무시
-    if full_path.startswith("api") or full_path.startswith("ws") or full_path.startswith("uploads"):
-        raise HTTPException(status_code=404, detail="Not Found")
-    
-    if INDEX_FILE.exists():
-        return FileResponse(INDEX_FILE)
-    return {"detail": "Frontend not built"}
 
 # DB 환경 변수
 DB_USER = os.getenv("DB_USER")
@@ -66,7 +52,6 @@ DB_PORT = os.getenv("DB_PORT")
 
 clients: Dict[str, List[WebSocket]] = {}
 
-# 모델 정의
 class Message(BaseModel):
     room_id: str
     username: str
@@ -83,7 +68,6 @@ class LoginForm(BaseModel):
     username: str
     password: str
 
-# DB 연결
 @app.on_event("startup")
 async def startup():
     app.state.db = await asyncpg.create_pool(
@@ -98,12 +82,10 @@ async def startup():
 async def shutdown():
     await app.state.db.close()
 
-# WebSocket 채팅 처리
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
     print(f"🟢 {username} joined room {room_id}")
-
     if room_id not in clients:
         clients[room_id] = []
     clients[room_id].append(websocket)
@@ -158,7 +140,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
         if not clients[room_id]:
             del clients[room_id]
 
-# 메시지 저장
 @app.post("/messages")
 async def save_message(msg: Message):
     try:
@@ -177,7 +158,6 @@ async def save_message(msg: Message):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 메시지 조회
 @app.get("/messages/{room_id}")
 async def get_messages(room_id: str):
     try:
@@ -189,7 +169,6 @@ async def get_messages(room_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 회원가입
 @app.post("/register")
 async def register_user(form: RegisterForm):
     try:
@@ -208,7 +187,6 @@ async def register_user(form: RegisterForm):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 로그인
 @app.post("/login")
 async def login_user(form: LoginForm):
     user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", form.username)
@@ -218,7 +196,6 @@ async def login_user(form: LoginForm):
         raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
     return {"status": "success", "message": "로그인 성공!"}
 
-# 아이디 중복 확인
 @app.get("/check-username/{username}")
 async def check_username(username: str):
     user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
@@ -226,13 +203,11 @@ async def check_username(username: str):
         return {"status": "success", "message": f"사용자 {username} 존재"}
     raise HTTPException(status_code=404, detail=f"사용자 {username}가 존재하지 않습니다.")
 
-# 파일 업로드
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     ext = file.filename.split(".")[-1]
     filename = f"{uuid4()}.{ext}"
     file_path = os.path.join(UPLOAD_DIR, filename)
-
     try:
         with open(file_path, "wb") as f:
             f.write(await file.read())
@@ -240,7 +215,18 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파일 저장 실패: {str(e)}")
 
-# 로컬 테스트 실행 (Render 배포 시 사용하지 않음)
+# ✅ React SPA fallback — 가장 마지막에 정의
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # API, WebSocket, 정적 파일 요청은 제외
+    if full_path.startswith(("api", "ws", "uploads", "register", "login", "messages", "upload", "check-username")):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    if INDEX_FILE.exists():
+        return FileResponse(INDEX_FILE)
+    return {"detail": "Frontend not built"}
+
+# 로컬 실행
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
