@@ -1,7 +1,6 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useState } from "react";
-import Login from "./components/Login";
 import Chat from "./components/Chat";
 import Home from "./components/Home";
 
@@ -13,18 +12,7 @@ function AppWrapper() {
       <Routes>
         <Route
           path="/"
-          element={
-            <Home username={username} setUsername={setUsername} />
-          }
-        />
-        <Route
-          path="/login"
-          element={
-            <Login
-              onLogin={setUsername}
-              onRegisterClick={() => {}}
-            />
-          }
+          element={<Home username={username} setUsername={setUsername} />}
         />
         <Route
           path="/chat/:roomId"
@@ -32,7 +20,7 @@ function AppWrapper() {
             username ? (
               <Chat username={username} />
             ) : (
-              <NavigateToLogin />
+              <NavigateToHome />
             )
           }
         />
@@ -41,10 +29,10 @@ function AppWrapper() {
   );
 }
 
-// 🔁 로그인 안되어 있을 경우, 로그인 페이지로 리다이렉트 + 현재 위치 기억
-function NavigateToLogin() {
+// 로그인되지 않은 상태에서 채팅방에 접근하면 홈으로 보내고, 원래 경로 기억
+function NavigateToHome() {
   const location = useLocation();
-  return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  return <Navigate to="/" state={{ from: location.pathname }} replace />;
 }
 
 export default AppWrapper;

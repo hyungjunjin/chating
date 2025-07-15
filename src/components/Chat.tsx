@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 interface Message {
   sender: string;
   content: string;
-  type: "text" | "image" | "video";
+  type: "text" | "image" | "video" | "file";
   created_at: string;
 }
 
@@ -12,6 +12,8 @@ function Chat({ username }: { username: string }) {
   const { roomId } = useParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -23,12 +25,16 @@ function Chat({ username }: { username: string }) {
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        const content = data.content;
+        const isVideo = /\.(mp4|mov|webm)$/i.test(content);
+        const isImage = /\.(jpg|jpeg|png|gif)$/i.test(content);
+
         setMessages((prev) => [
           ...prev,
           {
             sender: data.sender,
-            content: data.content,
-            type: data.type,
+            content,
+            type: data.type || (isVideo ? "video" : isImage ? "image" : "text"),
             created_at: data.created_at || new Date().toISOString(),
           },
         ]);
@@ -41,17 +47,18 @@ function Chat({ username }: { username: string }) {
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
-          const converted = data.map((msg) => ({
-            sender: msg.username,
-            content: msg.content,
-            type: msg.is_image
-              ? msg.content.match(/\.(mp4|mov|webm)$/i)
-                ? "video"
-                : "image"
-              : "text",
-            created_at: msg.created_at,
-          }));
-          setMessages(converted as Message[]);
+          const converted = data.map((msg) => {
+            const content = msg.content;
+            const isVideo = /\.(mp4|mov|webm)$/i.test(content);
+            const isImage = /\.(jpg|jpeg|png|gif)$/i.test(content);
+            return {
+              sender: msg.username,
+              content,
+              type: msg.type || (isVideo ? "video" : isImage ? "image" : "text"),
+              created_at: msg.created_at,
+            };
+          });
+          setMessages(converted);
         } else {
           console.error("서버 응답이 배열이 아님:", data);
           setMessages([]);
@@ -71,22 +78,20 @@ function Chat({ username }: { username: string }) {
   const handleSend = () => {
     if (!text.trim() || !socketRef.current) return;
 
+    const isImage = text.match(/\.(jpg|jpeg|png|gif)$/i);
+    const isVideo = text.match(/\.(mp4|mov|webm)$/i);
+
     const payload = {
       sender: username,
       content: text,
-      type: text.startsWith("http") && text.match(/\.(jpg|jpeg|png|gif)$/i)
-        ? "image"
-        : text.match(/\.(mp4|mov|webm)$/i)
-        ? "video"
-        : "text",
+      type: isVideo ? "video" : isImage ? "image" : "text",
     };
 
     socketRef.current.send(JSON.stringify(payload));
     setText("");
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const uploadFile = async (file: File) => {
     if (!file || !socketRef.current) return;
 
     const formData = new FormData();
@@ -101,14 +106,14 @@ function Chat({ username }: { username: string }) {
       const data = await res.json();
       const url = data.url;
 
+      const fileName = file.name.toLowerCase();
+      const isVideo = /\.(mp4|mov|webm)$/i.test(fileName);
+      const isImage = /\.(jpg|jpeg|png|gif)$/i.test(fileName);
+
       const payload = {
         sender: username,
         content: url,
-        type: file.type.startsWith("image/")
-          ? "image"
-          : file.type.startsWith("video/")
-          ? "video"
-          : "text",
+        type: isVideo ? "video" : isImage ? "image" : "file",
       };
 
       socketRef.current.send(JSON.stringify(payload));
@@ -117,55 +122,122 @@ function Chat({ username }: { username: string }) {
     }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) uploadFile(file);
+  };
+
   return (
-    <div style={{ maxWidth: 400, margin: "0 auto", padding: 20 }}>
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+      }}
+      onDrop={handleDrop}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        width: "100vw",
+        padding: "20px",
+        boxSizing: "border-box",
+        border: isDragging ? "3px dashed #888" : undefined,
+        backgroundColor: isDragging ? "#f7f7f7" : undefined,
+        transition: "all 0.2s",
+      }}
+    >
       <h2>💬 {username}님의 채팅방 [{roomId}]</h2>
-      <div
-        style={{
-          height: "400px",
-          overflowY: "auto",
-          border: "1px solid #ccc",
-          marginBottom: "10px",
-          padding: "10px",
-        }}
-      >
+
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: "auto",
+        overflowX: "hidden",
+        border: "1px solid #ccc",
+        marginBottom: "10px",
+        padding: "10px"
+      }}>
         {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            style={{
-              textAlign: msg.sender === username ? "right" : "left",
-              marginBottom: "8px",
-            }}
-          >
-            <span
-              style={{
-                background: msg.sender === username ? "#dcf8c6" : "#f1f0f0",
-                padding: "8px",
-                borderRadius: "10px",
-                display: "inline-block",
-                maxWidth: "80%",
-              }}
-            >
+          <div key={idx} style={{
+            display: "flex",
+            justifyContent: msg.sender === username ? "flex-end" : "flex-start",
+            marginBottom: "12px"
+          }}>
+            <div style={{
+              background: msg.sender === username ? "#dcf8c6" : "#f1f0f0",
+              padding: "8px",
+              borderRadius: "10px",
+              maxWidth: "80%",
+              overflowX: "auto",
+              position: "relative"
+            }}>
               {msg.type === "image" ? (
-                <img
-                  src={msg.content}
-                  alt="전송된 이미지"
-                  style={{ maxWidth: "100%" }}
-                />
+                <img src={msg.content} alt="이미지" style={{ maxWidth: "100%" }} />
               ) : msg.type === "video" ? (
-                <video src={msg.content} controls style={{ maxWidth: "100%" }} />
+                <video src={msg.content} controls style={{
+                  maxWidth: "100%",
+                  borderRadius: "10px",
+                  boxShadow: "0 0 4px rgba(0,0,0,0.2)"
+                }} />
+              ) : msg.type === "file" ? (
+                <a href={msg.content} download target="_blank" rel="noopener noreferrer">
+                  파일 다운로드
+                </a>
               ) : (
-                msg.content
+                <div style={{ position: "relative" }}>
+                  <pre style={{
+                    margin: 0,
+                    fontFamily: "monospace",
+                    whiteSpace: "pre",
+                    textAlign: "left",
+                    overflowX: "auto"
+                  }}>
+                    {msg.content}
+                  </pre>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(msg.content);
+                      setCopiedIndex(idx);
+                      setTimeout(() => setCopiedIndex(null), 1500);
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: "-8px",
+                      right: "-8px",
+                      zIndex: 1,
+                      fontSize: "12px",
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      background: "#eee",
+                      border: "1px solid #ccc",
+                      borderRadius: "6px",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
+                    }}
+                  >
+                    {copiedIndex === idx ? "✅ 복사됨" : "복사"}
+                  </button>
+                </div>
               )}
-            </span>
-            <div
-              style={{
+              <div style={{
                 fontSize: "12px",
                 color: "#aaa",
                 textAlign: "right",
-              }}
-            >
-              {new Date(msg.created_at).toLocaleString()}
+                marginTop: "12px"
+              }}>
+                {new Date(msg.created_at).toLocaleString()}
+              </div>
             </div>
           </div>
         ))}
@@ -174,20 +246,39 @@ function Chat({ username }: { username: string }) {
       <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
         <input
           type="file"
-          accept="image/*,video/*"
+          accept="*/*"
           onChange={handleFileUpload}
           style={{ flex: 1 }}
         />
       </div>
 
-      <div style={{ display: "flex", gap: "10px" }}>
-        <input
+      <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", marginTop: "10px" }}>
+        <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="메시지를 입력하세요"
-          style={{ flex: 1, padding: 10 }}
+          rows={3}
+          style={{
+            flex: 1,
+            padding: "10px",
+            fontSize: "16px",
+            fontFamily: "monospace",
+            whiteSpace: "pre-wrap",
+            resize: "vertical",
+            boxSizing: "border-box"
+          }}
         />
-        <button onClick={handleSend}>보내기</button>
+        <button
+          onClick={handleSend}
+          style={{
+            height: "100%",
+            padding: "10px 20px",
+            fontSize: "16px",
+            cursor: "pointer"
+          }}
+        >
+          보내기
+        </button>
       </div>
     </div>
   );
