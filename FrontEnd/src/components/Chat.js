@@ -1,6 +1,8 @@
 import { jsxs as _jsxs, jsx as _jsx } from "react/jsx-runtime";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+// ✅ 배포 주소로 설정
+const BACKEND_URL = "https://chating-yjax.onrender.com";
 function Chat({ username }) {
     const { roomId } = useParams();
     const [messages, setMessages] = useState([]);
@@ -11,7 +13,7 @@ function Chat({ username }) {
     useEffect(() => {
         if (!roomId || !username)
             return;
-        const socket = new WebSocket(`ws://localhost:8000/ws/${roomId}/${username}`);
+        const socket = new WebSocket(`wss://chating-yjax.onrender.com/ws/${roomId}/${username}`);
         socketRef.current = socket;
         socket.onmessage = (event) => {
             try {
@@ -33,7 +35,7 @@ function Chat({ username }) {
                 console.error("메시지 파싱 에러:", e);
             }
         };
-        fetch(`http://localhost:8000/messages/${roomId}`)
+        fetch(`${BACKEND_URL}/messages/${roomId}`)
             .then((res) => res.json())
             .then((data) => {
             if (Array.isArray(data)) {
@@ -83,7 +85,7 @@ function Chat({ username }) {
         const formData = new FormData();
         formData.append("file", file);
         try {
-            const res = await fetch("http://localhost:8000/upload", {
+            const res = await fetch(`${BACKEND_URL}/upload`, {
                 method: "POST",
                 body: formData,
             });
