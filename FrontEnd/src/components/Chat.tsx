@@ -8,6 +8,9 @@ interface Message {
   created_at: string;
 }
 
+// ✅ 배포 주소로 설정
+const BACKEND_URL = "https://chating-yjax.onrender.com";
+
 function Chat({ username }: { username: string }) {
   const { roomId } = useParams();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -19,7 +22,7 @@ function Chat({ username }: { username: string }) {
   useEffect(() => {
     if (!roomId || !username) return;
 
-    const socket = new WebSocket(`ws://localhost:8000/ws/${roomId}/${username}`);
+    const socket = new WebSocket(`wss://chating-yjax.onrender.com/ws/${roomId}/${username}`);
     socketRef.current = socket;
 
     socket.onmessage = (event) => {
@@ -43,7 +46,7 @@ function Chat({ username }: { username: string }) {
       }
     };
 
-    fetch(`http://localhost:8000/messages/${roomId}`)
+    fetch(`${BACKEND_URL}/messages/${roomId}`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -98,7 +101,7 @@ function Chat({ username }: { username: string }) {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/upload", {
+      const res = await fetch(`${BACKEND_URL}/upload`, {
         method: "POST",
         body: formData,
       });

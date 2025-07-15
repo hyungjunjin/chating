@@ -1,14 +1,13 @@
-// src/components/Login.tsx
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-function Login({
-  onLogin,
-  onRegisterClick,
-}: {
+interface LoginProps {
   onLogin: (username: string) => void;
   onRegisterClick: () => void;
-}) {
+  baseUrl: string;
+}
+
+function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
   const [form, setForm] = useState({ username: "", password: "" });
 
   const navigate = useNavigate();
@@ -21,18 +20,23 @@ function Login({
       return;
     }
 
-    const res = await fetch("http://localhost:8000/login", {
-      method: "POST",
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch(`${baseUrl}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    if (res.ok) {
-      onLogin(form.username); // App 상태에 로그인 반영
-      navigate(from);         // 원래 가려던 페이지로 이동
-    } else {
       const data = await res.json();
-      alert(data.detail); // 로그인 실패 메시지
+
+      if (res.ok) {
+        onLogin(form.username);
+        navigate(from);
+      } else {
+        alert(data.detail || "로그인 실패");
+      }
+    } catch (e) {
+      alert("서버 연결 실패");
     }
   };
 

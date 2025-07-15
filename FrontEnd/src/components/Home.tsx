@@ -5,6 +5,9 @@ import { v4 as uuidv4 } from "uuid";
 import Login from "./Login";
 import Register from "./Register";
 
+// ✅ 백엔드 주소 설정 (Render 주소 사용)
+const BACKEND_URL = "https://chating-yjax.onrender.com";
+
 function Home({
   username,
   setUsername,
@@ -42,11 +45,15 @@ function Home({
           </button>
         </>
       ) : isRegistering ? (
-        <Register onBack={() => setIsRegistering(false)} />
+        <Register
+          onBack={() => setIsRegistering(false)}
+          baseUrl={BACKEND_URL}
+        />
       ) : (
         <Login
           onLogin={(username) => setUsername(username)}
           onRegisterClick={() => setIsRegistering(true)}
+          baseUrl={BACKEND_URL}
         />
       )}
     </div>
