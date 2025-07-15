@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -16,21 +17,18 @@ load_dotenv()
 
 app = FastAPI()
 
-# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 배포 시에는 필요한 도메인만 허용
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 업로드 디렉토리 설정
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# 프론트엔드 빌드 경로 설정
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIST = (BASE_DIR / ".." / "FrontEnd" / "dist").resolve()
 INDEX_FILE = FRONTEND_DIST / "index.html"
@@ -38,13 +36,11 @@ INDEX_FILE = FRONTEND_DIST / "index.html"
 print(f"📁 FRONTEND_DIST: {FRONTEND_DIST}")
 print(f"📁 INDEX_FILE exists: {INDEX_FILE.exists()}")
 
-# 정적 파일은 /static 경로에 mount
 if FRONTEND_DIST.exists():
-    app.mount("/static", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
 else:
     print("⚠️  프론트엔드 dist 폴더가 존재하지 않습니다. 배포 전 빌드 필요")
 
-# DB 환경 변수
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
@@ -53,7 +49,6 @@ DB_PORT = os.getenv("DB_PORT")
 
 clients: Dict[str, List[WebSocket]] = {}
 
-# 모델 정의
 class Message(BaseModel):
     room_id: str
     username: str
@@ -70,7 +65,6 @@ class LoginForm(BaseModel):
     username: str
     password: str
 
-# DB 연결
 @app.on_event("startup")
 async def startup():
     app.state.db = await asyncpg.create_pool(
@@ -85,7 +79,6 @@ async def startup():
 async def shutdown():
     await app.state.db.close()
 
-# WebSocket
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
@@ -144,34 +137,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
         if not clients[room_id]:
             del clients[room_id]
 
-# API들
-@app.post("/register")
-async def register_user(form: RegisterForm):
-    try:
-        await app.state.db.execute(
-            """
-            INSERT INTO users (name, username, password)
-            VALUES ($1, $2, $3)
-            """,
-            form.name,
-            form.username,
-            form.password
-        )
-        return {"status": "success", "message": "회원가입 성공!"}
-    except asyncpg.UniqueViolationError:
-        raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/login")
-async def login_user(form: LoginForm):
-    user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", form.username)
-    if not user:
-        raise HTTPException(status_code=401, detail="아이디가 존재하지 않습니다.")
-    if form.password != user["password"]:
-        raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
-    return {"status": "success", "message": "로그인 성공!"}
-
 @app.post("/messages")
 async def save_message(msg: Message):
     try:
@@ -201,6 +166,33 @@ async def get_messages(room_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/register")
+async def register_user(form: RegisterForm):
+    try:
+        await app.state.db.execute(
+            """
+            INSERT INTO users (name, username, password)
+            VALUES ($1, $2, $3)
+            """,
+            form.name,
+            form.username,
+            form.password
+        )
+        return {"status": "success", "message": "회원가입 성공!"}
+    except asyncpg.UniqueViolationError:
+        raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/login")
+async def login_user(form: LoginForm):
+    user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", form.username)
+    if not user:
+        raise HTTPException(status_code=401, detail="아이디가 존재하지 않습니다.")
+    if form.password != user["password"]:
+        raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+    return {"status": "success", "message": "로그인 성공!"}
+
 @app.get("/check-username/{username}")
 async def check_username(username: str):
     user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
@@ -220,18 +212,14 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파일 저장 실패: {str(e)}")
 
-# ✅ React SPA fallback (마지막에 정의)
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    # API, WS, uploads 요청은 제외
-    if full_path.startswith(("api", "ws", "uploads", "register", "login", "messages", "upload", "check-username")):
+    if full_path.startswith(("api", "ws", "uploads")):
         raise HTTPException(status_code=404, detail="Not Found")
-
     if INDEX_FILE.exists():
         return FileResponse(INDEX_FILE)
     return {"detail": "Frontend not built"}
 
-# 로컬 실행
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
