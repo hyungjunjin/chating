@@ -1,21 +1,32 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import asyncpg
 from typing import Dict, List
 import json
-from passlib.context import CryptContext
 from datetime import datetime
 import os
 from uuid import uuid4
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 app = FastAPI()
 
+#  업로드 디렉토리 설정
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
+# 프론트엔드 정적 파일 (dist 폴더) 연결
+FRONTEND_DIR = "../dist"
+if os.path.exists(FRONTEND_DIR):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+
+#  CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -23,25 +34,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-#.ENV
-DB_USER = "chatuser"
-DB_PASSWORD = "1234"
-DB_NAME = "chatingsql"
-DB_HOST = "localhost"
-DB_PORT = "5432"
+
+# ✅ PostgreSQL 환경 변수 로드
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
 
 clients: Dict[str, List[WebSocket]] = {}
-#pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ✅ 메시지 구조
+# ✅ 모델 정의
 class Message(BaseModel):
     room_id: str
     username: str
     content: str
-    type: str  # "text", "image", "video", "file"
+    type: str
     created_at: str = None
 
-# ✅ 회원가입/로그인
 class RegisterForm(BaseModel):
     name: str
     username: str
@@ -51,6 +61,7 @@ class LoginForm(BaseModel):
     username: str
     password: str
 
+# ✅ DB 연결 풀 생성
 @app.on_event("startup")
 async def startup():
     app.state.db = await asyncpg.create_pool(
@@ -65,7 +76,7 @@ async def startup():
 async def shutdown():
     await app.state.db.close()
 
-# ✅ WebSocket
+# ✅ WebSocket 채팅
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
@@ -87,14 +98,13 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                 print("❌ 메시지 파싱 실패:", e)
                 continue
 
-            # DB 저장
             try:
-                insert_query = """
+                query = """
                     INSERT INTO messages (room_id, username, content, type, created_at)
                     VALUES ($1, $2, $3, $4, $5)
                 """
                 await app.state.db.execute(
-                    insert_query,
+                    query,
                     room_id,
                     username,
                     content,
@@ -105,7 +115,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                 print("❌ DB 저장 실패:", e)
                 continue
 
-            # 클라이언트에게 브로드캐스트
             message_payload = {
                 "sender": username,
                 "content": content,
@@ -129,7 +138,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
         if not clients[room_id]:
             del clients[room_id]
 
-# ✅ 메시지 저장 API (REST 방식)
+# ✅ 메시지 저장
 @app.post("/messages")
 async def save_message(msg: Message):
     query = """
@@ -137,12 +146,19 @@ async def save_message(msg: Message):
         VALUES ($1, $2, $3, $4, $5)
     """
     try:
-        await app.state.db.execute(query, msg.room_id, msg.username, msg.content, msg.type, msg.created_at or datetime.utcnow())
+        await app.state.db.execute(
+            query,
+            msg.room_id,
+            msg.username,
+            msg.content,
+            msg.type,
+            msg.created_at or datetime.utcnow()
+        )
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ 메시지 조회 API
+# ✅ 메시지 조회
 @app.get("/messages/{room_id}")
 async def get_messages(room_id: str):
     query = "SELECT * FROM messages WHERE room_id = $1 ORDER BY created_at ASC"
@@ -202,6 +218,6 @@ async def upload_file(file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
-        return {"url": f"http://localhost:8000/uploads/{filename}"}
+        return {"url": f"/uploads/{filename}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파일 저장 실패: {str(e)}")
