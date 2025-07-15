@@ -10,23 +10,35 @@ from datetime import datetime
 import os
 from uuid import uuid4
 from dotenv import load_dotenv
+from pathlib import Path
 
 # .env 파일 로드
 load_dotenv()
 
 app = FastAPI()
 
-#  업로드 디렉토리 설정
+# 업로드 디렉토리 설정
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # 프론트엔드 정적 파일 (dist 폴더) 연결
-FRONTEND_DIR = "../dist"
-if os.path.exists(FRONTEND_DIR):
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend" / "dist"
+
+if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
-#  CORS 설정
+# 404 fallback - React SPA 라우팅 대응
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    index_path = FRONTEND_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    else:
+        return {"detail": "Frontend not built"}
+
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -35,7 +47,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ PostgreSQL 환경 변수 로드
+# PostgreSQL 환경 변수 로드
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
@@ -44,7 +56,6 @@ DB_PORT = os.getenv("DB_PORT")
 
 clients: Dict[str, List[WebSocket]] = {}
 
-# ✅ 모델 정의
 class Message(BaseModel):
     room_id: str
     username: str
@@ -61,7 +72,6 @@ class LoginForm(BaseModel):
     username: str
     password: str
 
-# ✅ DB 연결 풀 생성
 @app.on_event("startup")
 async def startup():
     app.state.db = await asyncpg.create_pool(
@@ -76,7 +86,6 @@ async def startup():
 async def shutdown():
     await app.state.db.close()
 
-# ✅ WebSocket 채팅
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
@@ -89,7 +98,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     try:
         while True:
             data = await websocket.receive_text()
-
             try:
                 msg_data = json.loads(data)
                 content = msg_data.get("content", "")
@@ -138,7 +146,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
         if not clients[room_id]:
             del clients[room_id]
 
-# ✅ 메시지 저장
 @app.post("/messages")
 async def save_message(msg: Message):
     query = """
@@ -158,7 +165,6 @@ async def save_message(msg: Message):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ 메시지 조회
 @app.get("/messages/{room_id}")
 async def get_messages(room_id: str):
     query = "SELECT * FROM messages WHERE room_id = $1 ORDER BY created_at ASC"
@@ -168,7 +174,6 @@ async def get_messages(room_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ 회원가입
 @app.post("/register")
 async def register_user(form: RegisterForm):
     query = """
@@ -183,7 +188,6 @@ async def register_user(form: RegisterForm):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ 로그인
 @app.post("/login")
 async def login_user(form: LoginForm):
     query = "SELECT * FROM users WHERE username = $1"
@@ -196,7 +200,6 @@ async def login_user(form: LoginForm):
 
     return {"status": "success", "message": "로그인 성공!"}
 
-# ✅ 아이디 중복 확인
 @app.get("/check-username/{username}")
 async def check_username(username: str):
     query = "SELECT * FROM users WHERE username = $1"
@@ -207,7 +210,6 @@ async def check_username(username: str):
     else:
         raise HTTPException(status_code=404, detail=f"사용자 {username}가 존재하지 않습니다.")
 
-# ✅ 파일 업로드
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     ext = file.filename.split(".")[-1]
