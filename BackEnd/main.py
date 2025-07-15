@@ -24,10 +24,10 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # 프론트엔드 정적 파일 (dist 폴더) 연결
 BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = BASE_DIR / "frontend" / "dist"
+FRONTEND_DIR = BASE_DIR / "FrontEnd" / "dist"
 
 if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="FrontEnd")
 
 # 404 fallback - React SPA 라우팅 대응
 @app.get("/{full_path:path}")
@@ -36,7 +36,7 @@ async def serve_spa(full_path: str):
     if index_path.exists():
         return FileResponse(index_path)
     else:
-        return {"detail": "Frontend not built"}
+        return {"detail": "FrontEnd not built"}
 
 # CORS 설정
 app.add_middleware(
