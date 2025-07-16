@@ -9,7 +9,7 @@ interface Message {
 }
 
 // ✅ 배포 주소로 설정
-const BACKEND_URL = "https://chating-yjax.onrender.com";
+const BACKEND_URL = "http://localhost:8000";
 
 function Chat({ username }: { username: string }) {
   const { roomId } = useParams();
@@ -22,7 +22,7 @@ function Chat({ username }: { username: string }) {
   useEffect(() => {
     if (!roomId || !username) return;
 
-    const socket = new WebSocket(`wss://chating-yjax.onrender.com/ws/${roomId}/${username}`);
+    const socket = new WebSocket(`ws://localhost:8000/ws/${roomId}/${username}`);
     socketRef.current = socket;
 
     socket.onmessage = (event) => {

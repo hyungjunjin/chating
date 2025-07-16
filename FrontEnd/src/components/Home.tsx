@@ -6,7 +6,7 @@ import Login from "./Login";
 import Register from "./Register";
 
 // ✅ 백엔드 주소 설정 (Render 주소 사용)
-const BACKEND_URL = "https://chating-yjax.onrender.com";
+const BACKEND_URL = "http://localhost:8000";
 
 function Home({
   username,
