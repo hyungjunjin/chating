@@ -12,7 +12,7 @@ function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from || "/"; // 원래 가려던 경로 또는 홈
+  const from = location.state?.from || "/";
 
   const handleLogin = async () => {
     if (!form.username || !form.password) {
@@ -41,31 +41,41 @@ function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
   };
 
   return (
-    <div style={{ maxWidth: "300px", margin: "auto", padding: "1rem" }}>
-      <h2>🔐 로그인</h2>
-      <input
-        type="text"
-        placeholder="아이디"
-        value={form.username}
-        onChange={(e) => setForm({ ...form, username: e.target.value })}
-        style={{ marginBottom: "10px", width: "100%", padding: "8px" }}
-      />
-      <input
-        type="password"
-        placeholder="비밀번호"
-        value={form.password}
-        onChange={(e) => setForm({ ...form, password: e.target.value })}
-        style={{ marginBottom: "10px", width: "100%", padding: "8px" }}
-      />
-      <button onClick={handleLogin} style={{ width: "100%", padding: "10px" }}>
-        로그인
-      </button>
-      <button
-        onClick={onRegisterClick}
-        style={{ width: "100%", padding: "10px", marginTop: "10px" }}
-      >
-        회원가입
-      </button>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="w-full max-w-sm bg-white rounded-lg shadow p-6">
+        <h1 className="text-2xl font-bold text-center mb-2">🔥 채팅 앱</h1>
+        <h2 className="text-lg text-center mb-6">🔐 로그인</h2>
+
+        <input
+          type="text"
+          placeholder="아이디"
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value })}
+          className="w-full p-2 mb-3 border border-gray-300 rounded"
+        />
+
+        <input
+          type="password"
+          placeholder="비밀번호"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          className="w-full p-2 mb-3 border border-gray-300 rounded"
+        />
+
+        <button
+          onClick={handleLogin}
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+        >
+          로그인
+        </button>
+
+        <button
+          onClick={onRegisterClick}
+          className="w-full mt-3 py-2 border border-gray-400 rounded hover:bg-gray-100 transition"
+        >
+          회원가입
+        </button>
+      </div>
     </div>
   );
 }

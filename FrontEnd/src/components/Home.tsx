@@ -1,11 +1,9 @@
-// src/components/Home.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import Login from "./Login";
 import Register from "./Register";
 
-// ✅ 백엔드 주소 설정 (Render 주소 사용)
 const BACKEND_URL = "http://localhost:8000";
 
 function Home({
@@ -29,17 +27,17 @@ function Home({
   };
 
   return (
-    <div style={{ padding: "40px", textAlign: "center" }}>
-      <h1>🔥 채팅 앱</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen px-4 py-10 bg-gray-50 text-center">
+      <h1 className="text-4xl font-bold mb-8">🔥 채팅 앱</h1>
 
       {username ? (
         <>
-          <p style={{ marginBottom: "20px", fontSize: "18px" }}>
+          <p className="mb-6 text-lg">
             ✅ <strong>{username}</strong> 님, 로그인 완료!
           </p>
           <button
             onClick={handleRoomCreate}
-            style={{ padding: "12px 24px", fontSize: "16px" }}
+            className="px-6 py-3 text-white text-base rounded bg-green-600 hover:bg-green-700 transition"
           >
             🎯 채팅방 생성 및 입장
           </button>

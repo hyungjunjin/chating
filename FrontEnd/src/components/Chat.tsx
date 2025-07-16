@@ -8,7 +8,6 @@ interface Message {
   created_at: string;
 }
 
-// ✅ 배포 주소로 설정
 const BACKEND_URL = "http://localhost:8000";
 
 function Chat({ username }: { username: string }) {
@@ -149,64 +148,44 @@ function Chat({ username }: { username: string }) {
         setIsDragging(false);
       }}
       onDrop={handleDrop}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        width: "100vw",
-        padding: "20px",
-        boxSizing: "border-box",
-        border: isDragging ? "3px dashed #888" : undefined,
-        backgroundColor: isDragging ? "#f7f7f7" : undefined,
-        transition: "all 0.2s",
-      }}
+      className={`flex flex-col h-screen w-screen p-5 box-border transition-all ${
+        isDragging ? "border-4 border-dashed border-gray-400 bg-gray-100" : ""
+      }`}
     >
-      <h2>💬 {username}님의 채팅방 [{roomId}]</h2>
+      <h2 className="text-xl font-semibold mb-2">💬 {username}님의 채팅방 [{roomId}]</h2>
 
-      <div style={{
-        flex: 1,
-        minHeight: 0,
-        overflowY: "auto",
-        overflowX: "hidden",
-        border: "1px solid #ccc",
-        marginBottom: "10px",
-        padding: "10px"
-      }}>
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden border border-gray-300 mb-3 p-3 rounded bg-white">
         {messages.map((msg, idx) => (
-          <div key={idx} style={{
-            display: "flex",
-            justifyContent: msg.sender === username ? "flex-end" : "flex-start",
-            marginBottom: "12px"
-          }}>
-            <div style={{
-              background: msg.sender === username ? "#dcf8c6" : "#f1f0f0",
-              padding: "8px",
-              borderRadius: "10px",
-              maxWidth: "80%",
-              overflowX: "auto",
-              position: "relative"
-            }}>
+          <div
+            key={idx}
+            className={`flex mb-3 ${msg.sender === username ? "justify-end" : "justify-start"}`}
+          >
+            <div
+              className={`relative p-2 rounded-lg max-w-[80%] overflow-x-auto ${
+                msg.sender === username ? "bg-green-100" : "bg-gray-100"
+              }`}
+            >
               {msg.type === "image" ? (
-                <img src={msg.content} alt="이미지" style={{ maxWidth: "100%" }} />
+                <img src={msg.content} alt="이미지" className="max-w-full" />
               ) : msg.type === "video" ? (
-                <video src={msg.content} controls style={{
-                  maxWidth: "100%",
-                  borderRadius: "10px",
-                  boxShadow: "0 0 4px rgba(0,0,0,0.2)"
-                }} />
+                <video
+                  src={msg.content}
+                  controls
+                  className="max-w-full rounded shadow-sm"
+                />
               ) : msg.type === "file" ? (
-                <a href={msg.content} download target="_blank" rel="noopener noreferrer">
+                <a
+                  href={msg.content}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline"
+                >
                   파일 다운로드
                 </a>
               ) : (
-                <div style={{ position: "relative" }}>
-                  <pre style={{
-                    margin: 0,
-                    fontFamily: "monospace",
-                    whiteSpace: "pre",
-                    textAlign: "left",
-                    overflowX: "auto"
-                  }}>
+                <div className="relative">
+                  <pre className="m-0 font-mono text-left whitespace-pre overflow-x-auto">
                     {msg.content}
                   </pre>
                   <button
@@ -215,30 +194,13 @@ function Chat({ username }: { username: string }) {
                       setCopiedIndex(idx);
                       setTimeout(() => setCopiedIndex(null), 1500);
                     }}
-                    style={{
-                      position: "absolute",
-                      top: "-8px",
-                      right: "-8px",
-                      zIndex: 1,
-                      fontSize: "12px",
-                      padding: "4px 8px",
-                      cursor: "pointer",
-                      background: "#eee",
-                      border: "1px solid #ccc",
-                      borderRadius: "6px",
-                      boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
-                    }}
+                    className="absolute -top-2 -right-2 text-xs px-2 py-1 bg-gray-200 border border-gray-300 rounded shadow hover:bg-gray-100"
                   >
                     {copiedIndex === idx ? "✅ 복사됨" : "복사"}
                   </button>
                 </div>
               )}
-              <div style={{
-                fontSize: "12px",
-                color: "#aaa",
-                textAlign: "right",
-                marginTop: "12px"
-              }}>
+              <div className="text-xs text-gray-500 text-right mt-3">
                 {new Date(msg.created_at).toLocaleString()}
               </div>
             </div>
@@ -246,39 +208,26 @@ function Chat({ username }: { username: string }) {
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+      <div className="flex gap-2 mb-2">
         <input
           type="file"
           accept="*/*"
           onChange={handleFileUpload}
-          style={{ flex: 1 }}
+          className="flex-1"
         />
       </div>
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", marginTop: "10px" }}>
+      <div className="flex gap-2 items-end mt-2">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="메시지를 입력하세요"
           rows={3}
-          style={{
-            flex: 1,
-            padding: "10px",
-            fontSize: "16px",
-            fontFamily: "monospace",
-            whiteSpace: "pre-wrap",
-            resize: "vertical",
-            boxSizing: "border-box"
-          }}
+          className="flex-1 p-2 text-base font-mono resize-y box-border border border-gray-300 rounded"
         />
         <button
           onClick={handleSend}
-          style={{
-            height: "100%",
-            padding: "10px 20px",
-            fontSize: "16px",
-            cursor: "pointer"
-          }}
+          className="h-full px-4 py-2 text-base bg-blue-600 text-white rounded hover:bg-blue-700 transition"
         >
           보내기
         </button>

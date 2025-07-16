@@ -29,26 +29,44 @@ function Register({ onBack, baseUrl }: RegisterProps) {
   };
 
   return (
-    <div>
-      <h2>회원가입</h2>
+    <div className="max-w-sm mx-auto bg-white p-6 rounded shadow">
+      <h2 className="text-xl font-semibold text-center mb-6">📝 회원가입</h2>
+
       <input
         placeholder="이름"
         value={form.name}
         onChange={(e) => setForm({ ...form, name: e.target.value })}
+        className="w-full p-2 mb-3 border border-gray-300 rounded"
       />
+
       <input
         placeholder="아이디"
         value={form.username}
         onChange={(e) => setForm({ ...form, username: e.target.value })}
+        className="w-full p-2 mb-3 border border-gray-300 rounded"
       />
+
       <input
         type="password"
         placeholder="비밀번호"
         value={form.password}
         onChange={(e) => setForm({ ...form, password: e.target.value })}
+        className="w-full p-2 mb-4 border border-gray-300 rounded"
       />
-      <button onClick={handleRegister}>가입하기</button>
-      <button onClick={onBack}>← 로그인으로</button>
+
+      <button
+        onClick={handleRegister}
+        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition mb-2"
+      >
+        가입하기
+      </button>
+
+      <button
+        onClick={onBack}
+        className="w-full border border-gray-400 py-2 rounded hover:bg-gray-100 transition"
+      >
+        ← 로그인으로
+      </button>
     </div>
   );
 }
