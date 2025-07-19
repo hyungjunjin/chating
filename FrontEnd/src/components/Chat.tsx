@@ -22,9 +22,11 @@ function Chat({ username }: { username: string }) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [showParticipants, setShowParticipants] = useState(false);
 
+  const BACKEND_URL = "http://localhost:8000";
+
   useEffect(() => {
     if (!roomId || !username) return;
-    const socket = new WebSocket(`ws://localhost:8000/ws/${roomId}/${username}`);
+    const socket = new WebSocket(`${BACKEND_URL.replace("http", "ws")}/ws/${roomId}/${username}`);
     socketRef.current = socket;
 
     socket.onmessage = (event) => {
@@ -37,7 +39,7 @@ function Chat({ username }: { username: string }) {
 
         const content = data.content;
         const isVideo = /\.(mp4|mov|webm)$/i.test(content);
-        const isImage = /\.(jpg|jpeg|png|gif)$/i.test(content);
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(content);
 
         setMessages((prev) => [
           ...prev,
@@ -53,14 +55,14 @@ function Chat({ username }: { username: string }) {
       }
     };
 
-    fetch(`/messages/${roomId}`)
+    fetch(`${BACKEND_URL}/messages/${roomId}`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
           const converted = data.map((msg) => {
             const content = msg.content;
             const isVideo = /\.(mp4|mov|webm)$/i.test(content);
-            const isImage = /\.(jpg|jpeg|png|gif)$/i.test(content);
+            const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(content);
             return {
               sender: msg.username,
               content,
@@ -81,33 +83,44 @@ function Chat({ username }: { username: string }) {
   }, [roomId, username]);
 
   const sendFile = async (selectedFile: File) => {
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    const res = await fetch(`/upload`, {
-      method: "POST",
-      body: formData,
-    });
-    const data = await res.json();
-    const url = data.url;
-    const isVideo = /\.(mp4|mov|webm)$/i.test(selectedFile.name);
-    const isImage = /\.(jpg|jpeg|png|gif)$/i.test(selectedFile.name);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
-    socketRef.current?.send(
-      JSON.stringify({
-        sender: username,
-        content: url,
-        type: isVideo ? "video" : isImage ? "image" : "file",
-      })
-    );
+      const res = await fetch(`${BACKEND_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
 
-    setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+      if (!res.ok) throw new Error(`업로드 실패 (status: ${res.status})`);
+
+      const data = await res.json();
+      if (!data.url) throw new Error("서버 응답에 파일 URL이 없음");
+
+      const url = `${BACKEND_URL}${data.url}`;
+      const isVideo = /\.(mp4|mov|webm)$/i.test(selectedFile.name);
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(selectedFile.name);
+
+      socketRef.current?.send(
+        JSON.stringify({
+          sender: username,
+          content: url,
+          type: isVideo ? "video" : isImage ? "image" : "file",
+        })
+      );
+
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (error) {
+      console.error("파일 전송 오류:", error);
+      alert("파일 업로드에 실패했습니다. 콘솔을 확인해주세요.");
+    }
   };
 
   const handleSend = async () => {
     if (!socketRef.current || !text.trim()) return;
 
-    const isImage = /\.(jpg|jpeg|png|gif)$/i.test(text);
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(text);
     const isVideo = /\.(mp4|mov|webm)$/i.test(text);
 
     socketRef.current.send(
@@ -152,6 +165,7 @@ function Chat({ username }: { username: string }) {
 
   return (
     <>
+      {/* 채팅 헤더 */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -164,9 +178,7 @@ function Chat({ username }: { username: string }) {
         onDrop={(e) => {
           e.preventDefault();
           const dropped = e.dataTransfer.files?.[0];
-          if (dropped) {
-            sendFile(dropped);
-          }
+          if (dropped) sendFile(dropped);
           setIsDragging(false);
         }}
         className={`relative flex flex-col h-screen w-screen p-5 box-border bg-gradient-to-br from-indigo-50 via-white to-pink-50 transition-all ${
@@ -188,6 +200,7 @@ function Chat({ username }: { username: string }) {
           </div>
         </div>
 
+        {/* 메시지 리스트 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden border border-indigo-100 mb-3 p-4 rounded-xl bg-white shadow-inner">
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex mb-4 ${msg.sender === username ? "justify-end" : "justify-start"}`}>
@@ -226,6 +239,7 @@ function Chat({ username }: { username: string }) {
           ))}
         </div>
 
+        {/* 입력창 */}
         <div className="flex items-center gap-2 mb-3">
           <input
             type="file"
@@ -265,6 +279,22 @@ function Chat({ username }: { username: string }) {
         </div>
       </div>
 
+      {/* 이미지 보기 모달 */}
+      {showImage && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
+          <div className="relative">
+            <img src={showImage} alt="확대 이미지" className="max-w-full max-h-screen rounded shadow-lg" />
+            <button
+              onClick={() => setShowImage(null)}
+              className="absolute top-2 right-2 px-3 py-1 bg-white text-black rounded shadow"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 전체 메시지 보기 모달 */}
       {expandedIndex !== null && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60 z-50">
           <div className="bg-white p-6 rounded-lg max-w-4xl w-full shadow-lg">
@@ -290,6 +320,7 @@ function Chat({ username }: { username: string }) {
         </div>
       )}
 
+      {/* 참여자 목록 모달 */}
       {showParticipants && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg max-w-sm w-full shadow-lg">
@@ -307,20 +338,6 @@ function Chat({ username }: { username: string }) {
                 닫기
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showImage && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
-          <div className="relative">
-            <img src={showImage} alt="확대 이미지" className="max-w-full max-h-screen rounded shadow-lg" />
-            <button
-              onClick={() => setShowImage(null)}
-              className="absolute top-2 right-2 px-3 py-1 bg-white text-black rounded shadow"
-            >
-              닫기
-            </button>
           </div>
         </div>
       )}
