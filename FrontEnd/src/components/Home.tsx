@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import Login from "./Login";
@@ -14,33 +14,119 @@ function Home({
   setUsername: (u: string) => void;
 }) {
   const [isRegistering, setIsRegistering] = useState(false);
+  const [rooms, setRooms] = useState<string[]>([]);
   const navigate = useNavigate();
 
-  const handleRoomCreate = () => {
+  useEffect(() => {
+    const fetchRooms = async () => {
+      if (!username || typeof username !== "string" || username.trim() === "") return;
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/rooms/${username}`);
+        if (!res.ok) {
+          let message = "서버 오류";
+          try {
+            const err = await res.json();
+            message = err.detail || message;
+          } catch {
+            const text = await res.text();
+            message = `응답이 JSON이 아님: ${text}`;
+          }
+          console.error("❌ 방 목록 불러오기 실패:", message);
+          return;
+        }
+
+        const data = await res.json();
+        console.log("✅ 받은 방 데이터:", data);
+        if (Array.isArray(data)) {
+          setRooms(data.map((r) => r.room_id));
+        } else {
+          console.warn("⚠️ 예상치 못한 응답 형식:", data);
+        }
+      } catch (e) {
+        console.error("🚨 방 목록 요청 중 에러:", e);
+      }
+    };
+
+    fetchRooms();
+  }, [username]);
+
+  const handleRoomCreate = async () => {
     if (!username) {
       alert("먼저 로그인 해주세요!");
       return;
     }
 
+    if (rooms.length >= 3) {
+      alert("채팅방은 최대 3개까지만 생성할 수 있습니다.");
+      return;
+    }
+
     const roomId = uuidv4().slice(0, 8);
-    navigate(`/chat/${roomId}`);
+
+    const res = await fetch(`${BACKEND_URL}/rooms`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, room_id: roomId }),
+    });
+
+    if (res.ok) {
+      setRooms((prev) => [...prev, roomId]);
+      navigate(`/chat/${roomId}`);
+    } else {
+      const err = await res.json();
+      alert(err.detail || "방 생성 실패");
+    }
+  };
+
+  const handleRoomDelete = async (roomId: string) => {
+    await fetch(`${BACKEND_URL}/rooms/${roomId}`, { method: "DELETE" });
+    setRooms((prev) => prev.filter((r) => r !== roomId));
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4 py-10 bg-gray-50 text-center">
-      <h1 className="text-4xl font-bold mb-8">🔥 채팅 앱</h1>
-
       {username ? (
         <>
-          <p className="mb-6 text-lg">
-            ✅ <strong>{username}</strong> 님, 로그인 완료!
+          <p className="mb-6 text-2xl">
+            <strong>{username}</strong>님, 로그인 되었습니다.
           </p>
+
           <button
             onClick={handleRoomCreate}
-            className="px-6 py-3 text-white text-base rounded bg-green-600 hover:bg-green-700 transition"
+            className={`w-72 py-5 text-2xl font-semibold text-white rounded transition ${
+              rooms.length >= 3
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-green-600 hover:bg-green-700"
+            }`}
+            disabled={rooms.length >= 3}
           >
-            🎯 채팅방 생성 및 입장
+            채팅방 생성 및 입장
           </button>
+
+          {rooms.length > 0 && (
+            <div className="mt-6 space-y-3 w-80">
+              {rooms.map((roomId) => (
+                <div
+                  key={roomId}
+                  className="flex justify-between items-center bg-white px-4 py-3 rounded shadow border"
+                >
+                  <button
+                    onClick={() => navigate(`/chat/${roomId}`)}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {roomId} 입장
+                  </button>
+                  <button
+                    onClick={() => handleRoomDelete(roomId)}
+                    className="text-red-500 hover:underline text-sm"
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       ) : isRegistering ? (
         <Register

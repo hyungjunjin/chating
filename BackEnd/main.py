@@ -4,19 +4,19 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import asyncpg
-from typing import Dict, List
+from typing import Dict, List, Set
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from uuid import uuid4
 from dotenv import load_dotenv
 from pathlib import Path
+import asyncio
 
 load_dotenv()
 
 app = FastAPI()
 
-# ✅ CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,26 +25,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ 업로드 폴더 설정
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# ✅ 프론트엔드 빌드 파일 경로 설정
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIST = (BASE_DIR / ".." / "FrontEnd" / "dist").resolve()
 INDEX_FILE = FRONTEND_DIST / "index.html"
 
-print(f"📁 FRONTEND_DIST: {FRONTEND_DIST}")
-print(f"📁 INDEX_FILE exists: {INDEX_FILE.exists()}")
-
-# ✅ 정적 파일 mount (JS/CSS 등)
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
-else:
-    print("⚠️  프론트엔드 dist/assets 폴더가 존재하지 않습니다.")
 
-# ✅ DB 연결 정보
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
@@ -52,8 +43,9 @@ DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 
 clients: Dict[str, List[WebSocket]] = {}
+usernames: Dict[str, Set[str]] = {}
+last_active: Dict[str, datetime] = {}
 
-# ✅ Pydantic 모델
 class Message(BaseModel):
     room_id: str
     username: str
@@ -70,7 +62,10 @@ class LoginForm(BaseModel):
     username: str
     password: str
 
-# ✅ DB 연결
+class RoomCreate(BaseModel):
+    username: str
+    room_id: str
+
 @app.on_event("startup")
 async def startup():
     app.state.db = await asyncpg.create_pool(
@@ -80,30 +75,48 @@ async def startup():
         host=DB_HOST,
         port=DB_PORT
     )
+    asyncio.create_task(cleanup_inactive_rooms())
 
 @app.on_event("shutdown")
 async def shutdown():
     await app.state.db.close()
 
-# ✅ WebSocket
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
+    print(f"✅ WebSocket 연결 수락: room_id='{room_id}', username='{username}'")
+
     if room_id not in clients:
         clients[room_id] = []
+        usernames[room_id] = set()
     clients[room_id].append(websocket)
+    usernames[room_id].add(username)
+    last_active[room_id] = datetime.utcnow()
+    await broadcast_user_list(room_id)
 
     try:
         while True:
-            data = await websocket.receive_text()
-            msg_data = json.loads(data)
+            try:
+                data = await websocket.receive_text()
+                print("받은 메시지:", data)
+                msg_data = json.loads(data)
+            except WebSocketDisconnect:
+                print(f"🔌 연결 종료: {username} in {room_id}")
+                break
+            except Exception as e:
+                print("❌ 메시지 파싱 오류:", e)
+                continue
+
             content = msg_data.get("content", "")
             msg_type = msg_data.get("type", "text")
 
-            await app.state.db.execute(
-                "INSERT INTO messages (room_id, username, content, type, created_at) VALUES ($1, $2, $3, $4, $5)",
-                room_id, username, content, msg_type, datetime.utcnow()
-            )
+            try:
+                await app.state.db.execute(
+                    "INSERT INTO messages (room_id, username, content, type, created_at) VALUES ($1, $2, $3, $4, $5)",
+                    room_id, username, content, msg_type, datetime.utcnow()
+                )
+            except Exception as e:
+                print("❌ DB 저장 실패:", e)
 
             payload = {
                 "sender": username,
@@ -116,18 +129,85 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
             for client in clients[room_id]:
                 try:
                     await client.send_text(json.dumps(payload))
-                except Exception:
+                except:
                     disconnected.append(client)
 
             for dc in disconnected:
                 clients[room_id].remove(dc)
+            last_active[room_id] = datetime.utcnow()
 
-    except WebSocketDisconnect:
-        clients[room_id].remove(websocket)
+    finally:
+        # 연결 종료 후 정리
+        if websocket in clients[room_id]:
+            clients[room_id].remove(websocket)
+        usernames[room_id].discard(username)
+        await broadcast_user_list(room_id)
         if not clients[room_id]:
             del clients[room_id]
+            del usernames[room_id]
+            if room_id in last_active:
+                del last_active[room_id]
 
-# ✅ 회원가입
+async def broadcast_user_list(room_id: str):
+    user_list_payload = json.dumps({
+        "type": "user_list",
+        "users": list(usernames[room_id]),
+        "count": len(usernames[room_id])
+    })
+    for client in clients[room_id]:
+        try:
+            await client.send_text(user_list_payload)
+        except:
+            pass
+
+async def cleanup_inactive_rooms():
+    while True:
+        now = datetime.utcnow()
+        inactive = [rid for rid, ts in last_active.items() if now - ts > timedelta(hours=1)]
+        for rid in inactive:
+            print(f"🪙 삭제 대상 채팅방: {rid}")
+            try:
+                await app.state.db.execute("DELETE FROM messages WHERE room_id = $1", rid)
+                await app.state.db.execute("DELETE FROM rooms WHERE room_id = $1", rid)
+                del clients[rid]
+                del usernames[rid]
+                del last_active[rid]
+                print(f"✅ 채팅방 {rid} 삭제 완료")
+            except Exception as e:
+                print(f"❌ 채팅방 {rid} 삭제 실패: {e}")
+        await asyncio.sleep(600)
+
+@app.post("/rooms")
+async def create_room(room: RoomCreate):
+    try:
+        await app.state.db.execute(
+            "INSERT INTO rooms (username, room_id, created_at) VALUES ($1, $2, $3)",
+            room.username, room.room_id, datetime.utcnow()
+        )
+        return {"status": "success", "room_id": room.room_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/rooms/{username}")
+async def get_rooms(username: str):
+    try:
+        rows = await app.state.db.fetch(
+            "SELECT room_id FROM rooms WHERE username = $1 ORDER BY created_at ASC",
+            username
+        )
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/rooms/{room_id}")
+async def delete_room(room_id: str):
+    try:
+        await app.state.db.execute("DELETE FROM messages WHERE room_id = $1", room_id)
+        await app.state.db.execute("DELETE FROM rooms WHERE room_id = $1", room_id)
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/register")
 async def register_user(form: RegisterForm):
     try:
@@ -141,7 +221,6 @@ async def register_user(form: RegisterForm):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ 로그인
 @app.post("/login")
 async def login_user(form: LoginForm):
     user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", form.username)
@@ -151,7 +230,6 @@ async def login_user(form: LoginForm):
         raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
     return {"status": "success", "message": "로그인 성공!"}
 
-# ✅ 메시지 저장
 @app.post("/messages")
 async def save_message(msg: Message):
     try:
@@ -163,7 +241,6 @@ async def save_message(msg: Message):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ 메시지 조회
 @app.get("/messages/{room_id}")
 async def get_messages(room_id: str):
     try:
@@ -175,7 +252,6 @@ async def get_messages(room_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ✅ 아이디 중복 확인
 @app.get("/check-username/{username}")
 async def check_username(username: str):
     user = await app.state.db.fetchrow("SELECT * FROM users WHERE username = $1", username)
@@ -183,7 +259,6 @@ async def check_username(username: str):
         return {"status": "success", "message": f"{username} 존재함"}
     raise HTTPException(status_code=404, detail=f"{username} 존재하지 않음")
 
-# ✅ 파일 업로드
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     ext = file.filename.split(".")[-1]
@@ -196,10 +271,9 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"파일 저장 실패: {str(e)}")
 
-# ✅ React SPA fallback: 마지막 라우터
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    if full_path.startswith(("api", "ws", "uploads", "register", "login", "messages", "upload", "check-username")):
+    if full_path.startswith(("api", "ws", "uploads", "register", "login", "messages", "upload", "check-username", "rooms")):
         raise HTTPException(status_code=404, detail="Not Found")
     if INDEX_FILE.exists():
         return FileResponse(INDEX_FILE)

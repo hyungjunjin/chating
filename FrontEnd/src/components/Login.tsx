@@ -43,8 +43,8 @@ function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-sm bg-white rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-center mb-2">🔥 채팅 앱</h1>
-        <h2 className="text-lg text-center mb-6">🔐 로그인</h2>
+        <h1 className="text-6xl font-bold text-center mb-2">Chating Web</h1>
+        <h2 className="text-lg text-center mb-6">로그인</h2>
 
         <input
           type="text"
