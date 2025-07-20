@@ -8,10 +8,14 @@ const BACKEND_URL = "https://chating-yjax.onrender.com";
 
 function Home({
   username,
+  name,
   setUsername,
+  setName,
 }: {
   username: string | null;
+  name: string | null;
   setUsername: (u: string) => void;
+  setName: (n: string) => void;
 }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [rooms, setRooms] = useState<string[]>([]);
@@ -89,7 +93,7 @@ function Home({
       {username ? (
         <>
           <p className="mb-6 text-2xl">
-            <strong>{username}</strong>님, 로그인 되었습니다.
+            <strong>{name}</strong>님, 로그인 되었습니다.
           </p>
 
           <button
@@ -135,7 +139,10 @@ function Home({
         />
       ) : (
         <Login
-          onLogin={(username) => setUsername(username)}
+          onLogin={(username, name) => {
+            setUsername(username);
+            setName(name);
+          }}
           onRegisterClick={() => setIsRegistering(true)}
           baseUrl={BACKEND_URL}
         />

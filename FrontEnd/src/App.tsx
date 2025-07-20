@@ -6,19 +6,20 @@ import Home from "./components/Home";
 
 function AppWrapper() {
   const [username, setUsername] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
 
   return (
     <BrowserRouter>
       <Routes>
         <Route
           path="/"
-          element={<Home username={username} setUsername={setUsername} />}
+          element={<Home username={username} setUsername={setUsername} setName={setName} />}
         />
         <Route
           path="/chat/:roomId"
           element={
-            username ? (
-              <Chat username={username} />
+            username && name ? (
+              <Chat username={username} name={name} />
             ) : (
               <NavigateToHome />
             )
@@ -29,7 +30,6 @@ function AppWrapper() {
   );
 }
 
-// 로그인되지 않은 상태에서 채팅방에 접근하면 홈으로 보내고, 원래 경로 기억
 function NavigateToHome() {
   const location = useLocation();
   return <Navigate to="/" state={{ from: location.pathname }} replace />;

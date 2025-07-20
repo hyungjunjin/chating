@@ -228,7 +228,13 @@ async def login_user(form: LoginForm):
         raise HTTPException(status_code=401, detail="아이디가 존재하지 않습니다.")
     if form.password != user["password"]:
         raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
-    return {"status": "success", "message": "로그인 성공!"}
+    return {
+    "status": "success",
+    "message": "로그인 성공!",
+    "username": user["username"],
+    "name": user["name"]   # ✅ 사용자 실명도 포함
+}
+
 
 @app.post("/messages")
 async def save_message(msg: Message):

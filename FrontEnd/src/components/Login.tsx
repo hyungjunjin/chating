@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 interface LoginProps {
-  onLogin: (username: string) => void;
+  onLogin: (username: string, name: string) => void; 
   onRegisterClick: () => void;
   baseUrl: string;
 }
@@ -30,9 +30,10 @@ function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
       const data = await res.json();
 
       if (res.ok) {
-        onLogin(form.username);
-        navigate(from);
-      } else {
+  onLogin(data.username, data.name); // ✅ 백엔드 응답에서 받아온 name 사용
+  navigate(from);
+}
+else {
         alert(data.detail || "로그인 실패");
       }
     } catch (e) {
