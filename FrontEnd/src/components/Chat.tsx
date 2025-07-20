@@ -8,7 +8,7 @@ interface Message {
   created_at: string;
 }
 
-function Chat({ username }: { username: string }) {
+function Chat({ username ,name}: { username: string ,name : string}) {
   const { roomId } = useParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -187,7 +187,7 @@ function Chat({ username }: { username: string }) {
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-indigo-700">
-            💬 <span className="font-semibold">{username}</span>님의 채팅방 [{roomId}]
+            💬 <span className="font-semibold">{name}</span>님의 채팅방 [{roomId}]
           </h2>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">👥 {participants.length}명</span>
