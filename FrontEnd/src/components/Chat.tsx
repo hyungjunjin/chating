@@ -22,7 +22,7 @@ function Chat({ username }: { username: string }) {
   const [participants, setParticipants] = useState<string[]>([]);
   const [showParticipants, setShowParticipants] = useState(false);
 
-  const BACKEND_URL = "http://localhost:8000";
+  const BACKEND_URL = "https://chating-yjax.onrender.com";
 
   useEffect(() => {
     if (!roomId || !username) return;

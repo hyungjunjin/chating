@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import Login from "./Login";
 import Register from "./Register";
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = "https://chating-yjax.onrender.com";
 
 function Home({
   username,
