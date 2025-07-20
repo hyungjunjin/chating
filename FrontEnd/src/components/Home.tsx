@@ -1,3 +1,4 @@
+// src/components/Home.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
@@ -6,17 +7,13 @@ import Register from "./Register";
 
 const BACKEND_URL = "https://chating-yjax.onrender.com";
 
-function Home({
-  username,
-  name,
-  setUsername,
-  setName,
-}: {
+interface HomeProps {
   username: string | null;
-  name: string | null;
   setUsername: (u: string) => void;
   setName: (n: string) => void;
-}) {
+}
+
+function Home({ username, setUsername, setName }: HomeProps) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [rooms, setRooms] = useState<string[]>([]);
   const navigate = useNavigate();
@@ -93,7 +90,7 @@ function Home({
       {username ? (
         <>
           <p className="mb-6 text-2xl">
-            <strong>{name}</strong>님, 로그인 되었습니다.
+            <strong>{username}</strong>님, 로그인 되었습니다.
           </p>
 
           <button
