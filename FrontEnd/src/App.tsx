@@ -3,18 +3,26 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { useState } from "react";
 import Chat from "./components/Chat";
 import Home from "./components/Home";
-import Admin from "./components/Admin"; // ✅ 관리자 페이지 import
+import Admin from "./components/Admin";
 
 function AppWrapper() {
   const [username, setUsername] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem("admin") === "true"); // ✅ 상태 추가
 
   return (
     <BrowserRouter>
       <Routes>
         <Route
           path="/"
-          element={<Home username={username} setUsername={setUsername} setName={setName} />}
+          element={
+            <Home
+              username={username}
+              setUsername={setUsername}
+              setName={setName}
+              setIsAdmin={setIsAdmin} // ✅ 전달
+            />
+          }
         />
         <Route
           path="/chat/:roomId"
@@ -29,11 +37,7 @@ function AppWrapper() {
         <Route
           path="/admin"
           element={
-            localStorage.getItem("admin") === "true" ? (
-              <Admin />
-            ) : (
-              <NavigateToHome />
-            )
+            isAdmin ? <Admin /> : <NavigateToHome /> // ✅ 상태 기반 분기
           }
         />
       </Routes>

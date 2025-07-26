@@ -5,9 +5,10 @@ interface LoginProps {
   onLogin: (username: string, name: string) => void;
   onRegisterClick: () => void;
   baseUrl: string;
+  setIsAdmin: (v: boolean) => void; // ✅ 추가
 }
 
-function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
+function Login({ onLogin, onRegisterClick, baseUrl, setIsAdmin }: LoginProps) {
   const [form, setForm] = useState({ username: "", password: "" });
   const [isAdminLogin, setIsAdminLogin] = useState(false);
   const navigate = useNavigate();
@@ -32,8 +33,9 @@ function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
 
       if (res.ok) {
         if (isAdminLogin) {
-          // 관리자 로그인 성공
+          // ✅ 관리자 로그인 성공 처리
           localStorage.setItem("admin", "true");
+          setIsAdmin(true); // ✅ 상태 업데이트로 App.tsx 리렌더링 유도
           alert("관리자 로그인 성공!");
           navigate("/admin");
         } else {

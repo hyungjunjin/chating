@@ -10,9 +10,10 @@ interface HomeProps {
   username: string | null;
   setUsername: (u: string) => void;
   setName: (n: string) => void;
+  setIsAdmin: (v: boolean) => void; // ✅ 추가된 props
 }
 
-function Home({ username, setUsername, setName }: HomeProps) {
+function Home({ username, setUsername, setName, setIsAdmin }: HomeProps) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [rooms, setRooms] = useState<string[]>([]);
   const navigate = useNavigate();
@@ -66,7 +67,7 @@ function Home({ username, setUsername, setName }: HomeProps) {
       const res = await fetch(`${BACKEND_URL}/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }), // ✅ room_id는 백엔드에서 생성
+        body: JSON.stringify({ username }),
       });
 
       if (res.ok) {
@@ -133,7 +134,7 @@ function Home({ username, setUsername, setName }: HomeProps) {
           )}
         </>
       ) : isRegistering ? (
-        <Register   
+        <Register
           onBack={() => setIsRegistering(false)}
           baseUrl={BACKEND_URL}
         />
@@ -145,6 +146,7 @@ function Home({ username, setUsername, setName }: HomeProps) {
           }}
           onRegisterClick={() => setIsRegistering(true)}
           baseUrl={BACKEND_URL}
+          setIsAdmin={setIsAdmin} // ✅ 로그인으로 전달
         />
       )}
     </div>
