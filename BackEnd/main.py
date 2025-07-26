@@ -64,7 +64,6 @@ class LoginForm(BaseModel):
 
 class RoomCreate(BaseModel):
     username: str
-    room_id: str
 
 @app.on_event("startup")
 async def startup():
@@ -84,8 +83,6 @@ async def shutdown():
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
-    print(f"✅ WebSocket 연결 수락: room_id='{room_id}', username='{username}'")
-
     if room_id not in clients:
         clients[room_id] = []
         usernames[room_id] = set()
@@ -98,13 +95,10 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
         while True:
             try:
                 data = await websocket.receive_text()
-                print("받은 메시지:", data)
                 msg_data = json.loads(data)
             except WebSocketDisconnect:
-                print(f"🔌 연결 종료: {username} in {room_id}")
                 break
-            except Exception as e:
-                print("❌ 메시지 파싱 오류:", e)
+            except Exception:
                 continue
 
             content = msg_data.get("content", "")
@@ -115,8 +109,8 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
                     "INSERT INTO messages (room_id, username, content, type, created_at) VALUES ($1, $2, $3, $4, $5)",
                     room_id, username, content, msg_type, datetime.utcnow()
                 )
-            except Exception as e:
-                print("❌ DB 저장 실패:", e)
+            except Exception:
+                pass
 
             payload = {
                 "sender": username,
@@ -137,7 +131,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
             last_active[room_id] = datetime.utcnow()
 
     finally:
-        # 연결 종료 후 정리
         if websocket in clients[room_id]:
             clients[room_id].remove(websocket)
         usernames[room_id].discard(username)
@@ -165,26 +158,29 @@ async def cleanup_inactive_rooms():
         now = datetime.utcnow()
         inactive = [rid for rid, ts in last_active.items() if now - ts > timedelta(hours=1)]
         for rid in inactive:
-            print(f"🪙 삭제 대상 채팅방: {rid}")
             try:
-                await app.state.db.execute("DELETE FROM messages WHERE room_id = $1", rid)
-                await app.state.db.execute("DELETE FROM rooms WHERE room_id = $1", rid)
+                await app.state.db.execute("UPDATE rooms SET is_active = false WHERE room_id = $1", rid)
                 del clients[rid]
                 del usernames[rid]
                 del last_active[rid]
-                print(f"✅ 채팅방 {rid} 삭제 완료")
-            except Exception as e:
-                print(f"❌ 채팅방 {rid} 삭제 실패: {e}")
+            except:
+                pass
         await asyncio.sleep(600)
 
 @app.post("/rooms")
 async def create_room(room: RoomCreate):
+    while True:
+        room_id = uuid4().hex[:8]
+        existing = await app.state.db.fetchrow("SELECT 1 FROM rooms WHERE room_id = $1", room_id)
+        if not existing:
+            break
+
     try:
         await app.state.db.execute(
-            "INSERT INTO rooms (username, room_id, created_at) VALUES ($1, $2, $3)",
-            room.username, room.room_id, datetime.utcnow()
+            "INSERT INTO rooms (username, room_id, created_at, is_active) VALUES ($1, $2, $3, true)",
+            room.username, room_id, datetime.utcnow()
         )
-        return {"status": "success", "room_id": room.room_id}
+        return {"status": "success", "room_id": room_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -192,7 +188,7 @@ async def create_room(room: RoomCreate):
 async def get_rooms(username: str):
     try:
         rows = await app.state.db.fetch(
-            "SELECT room_id FROM rooms WHERE username = $1 ORDER BY created_at ASC",
+            "SELECT room_id FROM rooms WHERE username = $1 AND is_active = true ORDER BY created_at ASC",
             username
         )
         return [dict(r) for r in rows]
@@ -202,9 +198,8 @@ async def get_rooms(username: str):
 @app.delete("/rooms/{room_id}")
 async def delete_room(room_id: str):
     try:
-        await app.state.db.execute("DELETE FROM messages WHERE room_id = $1", room_id)
-        await app.state.db.execute("DELETE FROM rooms WHERE room_id = $1", room_id)
-        return {"status": "deleted"}
+        await app.state.db.execute("UPDATE rooms SET is_active = false WHERE room_id = $1", room_id)
+        return {"status": "disabled"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -229,12 +224,11 @@ async def login_user(form: LoginForm):
     if form.password != user["password"]:
         raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
     return {
-    "status": "success",
-    "message": "로그인 성공!",
-    "username": user["username"],
-    "name": user["name"]   # ✅ 사용자 실명도 포함
-}
-
+        "status": "success",
+        "message": "로그인 성공!",
+        "username": user["username"],
+        "name": user["name"]
+    }
 
 @app.post("/messages")
 async def save_message(msg: Message):

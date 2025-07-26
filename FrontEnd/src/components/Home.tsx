@@ -1,7 +1,6 @@
 // src/components/Home.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { v4 as uuidv4 } from "uuid";
 import Login from "./Login";
 import Register from "./Register";
 
@@ -63,20 +62,24 @@ function Home({ username, setUsername, setName }: HomeProps) {
       return;
     }
 
-    const roomId = uuidv4().slice(0, 8);
+    try {
+      const res = await fetch(`${BACKEND_URL}/rooms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }), // ✅ room_id는 백엔드에서 생성
+      });
 
-    const res = await fetch(`${BACKEND_URL}/rooms`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, room_id: roomId }),
-    });
-
-    if (res.ok) {
-      setRooms((prev) => [...prev, roomId]);
-      navigate(`/chat/${roomId}`);
-    } else {
-      const err = await res.json();
-      alert(err.detail || "방 생성 실패");
+      if (res.ok) {
+        const data = await res.json();
+        const newRoomId = data.room_id;
+        setRooms((prev) => [...prev, newRoomId]);
+        navigate(`/chat/${newRoomId}`);
+      } else {
+        const err = await res.json();
+        alert(err.detail || "방 생성 실패");
+      }
+    } catch (e) {
+      alert("서버 연결 실패");
     }
   };
 
@@ -130,7 +133,7 @@ function Home({ username, setUsername, setName }: HomeProps) {
           )}
         </>
       ) : isRegistering ? (
-        <Register
+        <Register   
           onBack={() => setIsRegistering(false)}
           baseUrl={BACKEND_URL}
         />
