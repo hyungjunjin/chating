@@ -41,6 +41,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")  # ✅ 관리자 비밀번호 환경변수
 
 clients: Dict[str, List[WebSocket]] = {}
 usernames: Dict[str, Set[str]] = {}
@@ -230,6 +231,14 @@ async def login_user(form: LoginForm):
         "name": user["name"]
     }
 
+@app.post("/admin/login")
+async def admin_login(form: LoginForm):
+    if form.username != "admin":
+        raise HTTPException(status_code=401, detail="관리자 아이디가 아닙니다.")
+    if form.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="비밀번호가 틀렸습니다.")
+    return {"status": "success", "role": "admin", "message": "관리자 로그인 성공!"}
+
 @app.post("/messages")
 async def save_message(msg: Message):
     try:
@@ -273,8 +282,17 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    if full_path.startswith(("api", "ws", "uploads", "register", "login", "messages", "upload", "check-username", "rooms")):
+    if full_path.startswith(("api", "ws", "uploads", "register", "login", "messages", "upload", "check-username", "rooms", "admin")):
         raise HTTPException(status_code=404, detail="Not Found")
     if INDEX_FILE.exists():
         return FileResponse(INDEX_FILE)
     return {"detail": "Frontend not built"}
+    @app.get("/admin/rooms")
+async def admin_get_all_rooms():
+    try:
+        rows = await app.state.db.fetch(
+            "SELECT room_id, username, created_at, is_active FROM rooms ORDER BY created_at DESC"
+        )
+        return [dict(row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

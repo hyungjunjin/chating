@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 interface LoginProps {
-  onLogin: (username: string, name: string) => void; 
+  onLogin: (username: string, name: string) => void;
   onRegisterClick: () => void;
   baseUrl: string;
 }
 
 function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
   const [form, setForm] = useState({ username: "", password: "" });
-
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from || "/";
@@ -21,7 +21,8 @@ function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
     }
 
     try {
-      const res = await fetch(`${baseUrl}/login`, {
+      const endpoint = isAdminLogin ? "/admin/login" : "/login";
+      const res = await fetch(`${baseUrl}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -30,10 +31,17 @@ function Login({ onLogin, onRegisterClick, baseUrl }: LoginProps) {
       const data = await res.json();
 
       if (res.ok) {
-  onLogin(data.username, data.name); // ✅ 백엔드 응답에서 받아온 name 사용
-  navigate(from);
-}
-else {
+        if (isAdminLogin) {
+          // 관리자 로그인 성공
+          localStorage.setItem("admin", "true");
+          alert("관리자 로그인 성공!");
+          navigate("/admin");
+        } else {
+          // 일반 유저 로그인
+          onLogin(data.username, data.name);
+          navigate(from);
+        }
+      } else {
         alert(data.detail || "로그인 실패");
       }
     } catch (e) {
@@ -45,7 +53,7 @@ else {
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-sm bg-white rounded-lg shadow p-6">
         <h1 className="text-6xl font-bold text-center mb-2">Chating Web</h1>
-        <h2 className="text-lg text-center mb-6">로그인</h2>
+        <h2 className="text-lg text-center mb-4">로그인</h2>
 
         <input
           type="text"
@@ -62,6 +70,16 @@ else {
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           className="w-full p-2 mb-3 border border-gray-300 rounded"
         />
+
+        <label className="flex items-center text-sm mb-3">
+          <input
+            type="checkbox"
+            checked={isAdminLogin}
+            onChange={(e) => setIsAdminLogin(e.target.checked)}
+            className="mr-2"
+          />
+          관리자 로그인
+        </label>
 
         <button
           onClick={handleLogin}

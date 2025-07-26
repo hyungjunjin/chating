@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { useState } from "react";
 import Chat from "./components/Chat";
 import Home from "./components/Home";
+import Admin from "./components/Admin"; // ✅ 관리자 페이지 import
 
 function AppWrapper() {
   const [username, setUsername] = useState<string | null>(null);
@@ -20,6 +21,16 @@ function AppWrapper() {
           element={
             username && name ? (
               <Chat username={username} name={name} />
+            ) : (
+              <NavigateToHome />
+            )
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            localStorage.getItem("admin") === "true" ? (
+              <Admin />
             ) : (
               <NavigateToHome />
             )
