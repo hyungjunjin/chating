@@ -21,11 +21,18 @@ function Chat({ username, name }: { username: string; name: string }) {
   const socketRef = useRef<WebSocket | null>(null);
   const [participants, setParticipants] = useState<string[]>([]);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [roomOwnerName, setRoomOwnerName] = useState<string>("");
 
   const BACKEND_URL = "https://chating-yjax.onrender.com";
 
   useEffect(() => {
     if (!roomId || !username) return;
+
+    fetch(`${BACKEND_URL}/room-info/${roomId}`)
+      .then((res) => res.json())
+      .then((data) => setRoomOwnerName(data.owner_name || ""))
+      .catch(() => setRoomOwnerName(""));
+
     const socket = new WebSocket(`${BACKEND_URL.replace("http", "ws")}/ws/${roomId}/${username}`);
     socketRef.current = socket;
 
@@ -51,7 +58,7 @@ function Chat({ username, name }: { username: string; name: string }) {
           },
         ]);
       } catch (e) {
-        console.error("메시지 파싱 에러:", e);
+        console.error("\uBA54\uC2DC\uC9C0 \uD30C\uC2F1 \uC5D0\uB7EC:", e);
       }
     };
 
@@ -92,10 +99,10 @@ function Chat({ username, name }: { username: string; name: string }) {
         body: formData,
       });
 
-      if (!res.ok) throw new Error(`업로드 실패 (status: ${res.status})`);
+      if (!res.ok) throw new Error(`\uC5C5\uB85C\uB4DC \uC2E4\uD328 (status: ${res.status})`);
 
       const data = await res.json();
-      if (!data.url) throw new Error("서버 응답에 파일 URL이 없음");
+      if (!data.url) throw new Error("\uC11C\uBC84 \uC751\uB2F5\uC5D0 \uD30C\uC77C URL\uC774 \uC5C6\uC74C");
 
       const url = `${BACKEND_URL}${data.url}`;
       const isVideo = /\.(mp4|mov|webm)$/i.test(selectedFile.name);
@@ -112,8 +119,8 @@ function Chat({ username, name }: { username: string; name: string }) {
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
-      console.error("파일 전송 오류:", error);
-      alert("파일 업로드에 실패했습니다. 콘솔을 확인해주세요.");
+      console.error("\uD30C\uC77C \uC804\uC1A1 \uC624\uB958:", error);
+      alert("\uD30C\uC77C \uC5C5\uB85C\uB4DC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uCF58\uC194\uC744 \uD655\uC778\uD574\uC8FC\uC138\uC694.");
     }
   };
 
@@ -165,29 +172,21 @@ function Chat({ username, name }: { username: string; name: string }) {
 
   return (
     <>
-      {/* 채팅 헤더 */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          setIsDragging(false);
-        }}
+      <div className={`relative flex flex-col h-screen w-screen p-5 box-border bg-gradient-to-br from-indigo-50 via-white to-pink-50 transition-all ${
+        isDragging ? "border-4 border-dashed border-indigo-400" : ""
+      }`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
         onDrop={(e) => {
           e.preventDefault();
           const dropped = e.dataTransfer.files?.[0];
           if (dropped) sendFile(dropped);
           setIsDragging(false);
         }}
-        className={`relative flex flex-col h-screen w-screen p-5 box-border bg-gradient-to-br from-indigo-50 via-white to-pink-50 transition-all ${
-          isDragging ? "border-4 border-dashed border-indigo-400" : ""
-        }`}
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-indigo-700">
-            💬 <span className="font-semibold">{name}</span>님의 채팅방 [{roomId}]
+            💬 <span className="font-semibold">{roomOwnerName}</span>님의 채팅방 [{roomId}]
           </h2>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">👥 {participants.length}명</span>
@@ -200,7 +199,6 @@ function Chat({ username, name }: { username: string; name: string }) {
           </div>
         </div>
 
-        {/* 메시지 리스트 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden border border-indigo-100 mb-3 p-4 rounded-xl bg-white shadow-inner">
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex mb-4 ${msg.sender === username ? "justify-end" : "justify-start"}`}>
@@ -244,7 +242,6 @@ function Chat({ username, name }: { username: string; name: string }) {
           ))}
         </div>
 
-        {/* 입력창 */}
         <div className="flex items-center gap-2 mb-3">
           <input
             type="file"
@@ -284,7 +281,6 @@ function Chat({ username, name }: { username: string; name: string }) {
         </div>
       </div>
 
-      {/* 이미지 보기 모달 */}
       {showImage && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
           <div className="relative">
@@ -299,7 +295,6 @@ function Chat({ username, name }: { username: string; name: string }) {
         </div>
       )}
 
-      {/* 전체 메시지 보기 모달 */}
       {expandedIndex !== null && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60 z-50">
           <div className="bg-white p-6 rounded-lg max-w-4xl w-full shadow-lg">
@@ -325,7 +320,6 @@ function Chat({ username, name }: { username: string; name: string }) {
         </div>
       )}
 
-      {/* 참여자 목록 모달 */}
       {showParticipants && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg max-w-sm w-full shadow-lg">

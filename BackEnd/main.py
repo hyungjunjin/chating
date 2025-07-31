@@ -196,6 +196,24 @@ async def get_rooms(username: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/room-info/{room_id}")
+async def get_room_info(room_id: str):
+    try:
+        row = await app.state.db.fetchrow(
+            """
+            SELECT users.name
+            FROM rooms
+            JOIN users ON rooms.username = users.username
+            WHERE rooms.room_id = $1
+            """,
+            room_id,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="방 정보 없음")
+        return {"owner_name": row["name"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/rooms/{room_id}")
 async def delete_room(room_id: str):
     try:
