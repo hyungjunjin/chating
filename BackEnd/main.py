@@ -315,3 +315,11 @@ async def serve_spa(full_path: str):
     if INDEX_FILE.exists():
         return FileResponse(INDEX_FILE)
     return {"detail": "Frontend not built"}
+@app.delete("/admin/room/{room_id}")
+async def admin_delete_room(room_id: str):
+    try:
+        await app.state.db.execute("DELETE FROM messages WHERE room_id = $1", room_id)
+        await app.state.db.execute("DELETE FROM rooms WHERE room_id = $1", room_id)
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -52,6 +52,31 @@ function Admin() {
       });
   };
 
+  const handleRoomDelete = async (roomId: string) => {
+    const confirmed = window.confirm("정말 이 채팅방을 삭제하시겠습니까?");
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/admin/room/${roomId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setRooms((prev) => prev.filter((r) => r.room_id !== roomId));
+        if (selectedRoom === roomId) {
+          setSelectedRoom(null);
+          setMessages([]);
+        }
+      } else {
+        const err = await res.json();
+        alert(err.detail || "삭제 실패");
+      }
+    } catch (e) {
+      console.error("삭제 요청 실패:", e);
+      alert("서버 오류로 삭제에 실패했습니다.");
+    }
+  };
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <h1 className="text-3xl font-bold mb-6 text-indigo-700">📊 관리자 대시보드</h1>
@@ -74,18 +99,26 @@ function Admin() {
                     생성자: {room.username} | {new Date(room.created_at).toLocaleString()}
                   </p>
                   <p className="text-sm mt-1">
-                    상태:{" "}
+                    상태: {" "}
                     <span className={room.is_active ? "text-green-600" : "text-red-500"}>
                       {room.is_active ? "활성" : "비활성"}
                     </span>
                   </p>
                 </div>
-                <button
-                  onClick={() => loadMessages(room.room_id)}
-                  className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                >
-                  채팅 보기
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleRoomDelete(room.room_id)}
+                    className="text-sm bg-red-500 text-white rounded px-3 py-1 hover:bg-red-600"
+                  >
+                    삭제
+                  </button>
+                  <button
+                    onClick={() => loadMessages(room.room_id)}
+                    className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                  >
+                    채팅 보기
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -99,10 +132,9 @@ function Admin() {
               <ul className="space-y-3 max-h-[500px] overflow-y-auto">
                 {messages.map((msg, idx) => (
                   <li key={idx} className="p-3 border rounded bg-gray-100">
-                    <p className="text-sm text-gray-600 mb-1">
-                      <strong>{msg.sender}</strong> |{" "}
-                      {new Date(msg.created_at).toLocaleString()}
-                    </p>
+                    <div className="mb-1 text-sm">
+                      <strong className="text-indigo-600">{msg.sender}</strong> | {new Date(msg.created_at).toLocaleString()}
+                    </div>
                     {msg.type === "image" ? (
                       <img src={msg.content} alt="이미지" className="max-w-xs rounded" />
                     ) : msg.type === "video" ? (
