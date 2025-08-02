@@ -84,12 +84,14 @@ async def shutdown():
 @app.websocket("/ws/{room_id}/{username}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
     await websocket.accept()
+
     if room_id not in clients:
         clients[room_id] = []
         usernames[room_id] = set()
     clients[room_id].append(websocket)
     usernames[room_id].add(username)
     last_active[room_id] = datetime.utcnow()
+
     await broadcast_user_list(room_id)
 
     try:
@@ -100,6 +102,18 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, username: str):
             except WebSocketDisconnect:
                 break
             except Exception:
+                continue
+
+            # ✅ 방 활성 상태 확인
+            active = await app.state.db.fetchval("SELECT is_active FROM rooms WHERE room_id = $1", room_id)
+            if not active:
+                try:
+                    await websocket.send_text(json.dumps({
+                        "type": "error",
+                        "message": "방이 삭제되어 메시지를 보낼 수 없습니다."
+                    }))
+                except:
+                    pass
                 continue
 
             content = msg_data.get("content", "")
@@ -214,14 +228,24 @@ async def get_room_info(room_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/rooms/{room_id}")
+@app.delete("/rooms/{room_id}") #사용자 방 삭제기능
 async def delete_room(room_id: str):
     try:
         await app.state.db.execute("UPDATE rooms SET is_active = false WHERE room_id = $1", room_id)
+        if room_id in clients:
+            deleted_payload = json.dumps({
+                "type": "room_deleted",
+                "message": "이 채팅방은 삭제되었습니다."
+            })
+            for client in clients[room_id]:
+                try:
+                    await client.send_text(deleted_payload)
+                except:
+                    pass
+
         return {"status": "disabled"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/register")
 async def register_user(form: RegisterForm):
     try:
@@ -337,7 +361,7 @@ async def serve_spa(full_path: str):
         return FileResponse(INDEX_FILE)
     return {"detail": "Frontend not built"}
 
-@app.delete("/admin/room/{room_id}")
+@app.delete("/admin/room/{room_id}") #어드민의 방 삭제
 async def admin_delete_room(room_id: str):
     try:
         await app.state.db.execute("DELETE FROM messages WHERE room_id = $1", room_id)

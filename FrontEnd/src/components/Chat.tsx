@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   sender: string;
@@ -9,6 +10,7 @@ interface Message {
 }
 
 function Chat({ username, name }: { username: string; name: string }) {
+  const navigate = useNavigate();
   const { roomId } = useParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -37,12 +39,26 @@ function Chat({ username, name }: { username: string; name: string }) {
     socketRef.current = socket;
 
     socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "user_list") {
-          setParticipants(data.users);
-          return;
-        }
+  try {
+    const data = JSON.parse(event.data);
+
+    // ✅ 삭제된 방 알림 처리
+    if (data.type === "room_deleted") {
+      alert("이 채팅방은 삭제되었습니다. 메인 화면으로 이동합니다.");
+      navigate("/");
+      return;
+    }
+
+    // ✅ 메시지 전송 차단 에러 처리
+    if (data.type === "error") {
+      alert(data.message);
+      return;
+    }
+
+    if (data.type === "user_list") {
+      setParticipants(data.users);
+      return;
+    }
 
         const content = data.content;
         const isVideo = /\.(mp4|mov|webm)$/i.test(content);
