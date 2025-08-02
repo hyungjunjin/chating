@@ -351,10 +351,10 @@ async def upload_file(file: UploadFile = File(...)):
 async def serve_spa(full_path: str):
     # 예외로 둘 API 엔드포인트를 명시적으로 나열
     api_prefixes = [
-        "api", "ws", "uploads", "register", "login", "messages",
-        "upload", "check-username", "rooms",
-        "admin", "admin/login", "admin/rooms", "admin/messages", "admin/room"
-    ]
+    "api", "ws", "uploads", "register", "login", "messages",
+    "upload", "check-username", "rooms",
+    "admin/login", "admin/rooms", "admin/messages", "admin/room"
+]
     if any(full_path.startswith(p) for p in api_prefixes):
         raise HTTPException(status_code=404, detail="Not Found")
     if INDEX_FILE.exists():

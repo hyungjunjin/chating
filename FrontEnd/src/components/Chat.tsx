@@ -35,30 +35,32 @@ function Chat({ username, name }: { username: string; name: string }) {
       .then((data) => setRoomOwnerName(data.owner_name || ""))
       .catch(() => setRoomOwnerName(""));
 
-    const socket = new WebSocket(`${BACKEND_URL.replace("http", "ws")}/ws/${roomId}/${username}`);
+    const socket = new WebSocket(
+      `${BACKEND_URL.replace("http", "ws")}/ws/${roomId}/${username}`
+    );
     socketRef.current = socket;
 
     socket.onmessage = (event) => {
-  try {
-    const data = JSON.parse(event.data);
+      try {
+        const data = JSON.parse(event.data);
 
-    // ✅ 삭제된 방 알림 처리
-    if (data.type === "room_deleted") {
-      alert("이 채팅방은 삭제되었습니다. 메인 화면으로 이동합니다.");
-      navigate("/");
-      return;
-    }
+        // ✅ 삭제된 방 알림 처리
+        if (data.type === "room_deleted") {
+          alert("이 채팅방은 삭제되었습니다. 메인 화면으로 이동합니다.");
+          navigate("/");
+          return;
+        }
 
-    // ✅ 메시지 전송 차단 에러 처리
-    if (data.type === "error") {
-      alert(data.message);
-      return;
-    }
+        // ✅ 메시지 전송 차단 에러 처리
+        if (data.type === "error") {
+          alert(data.message);
+          return;
+        }
 
-    if (data.type === "user_list") {
-      setParticipants(data.users);
-      return;
-    }
+        if (data.type === "user_list") {
+          setParticipants(data.users);
+          return;
+        }
 
         const content = data.content;
         const isVideo = /\.(mp4|mov|webm)$/i.test(content);
@@ -89,7 +91,8 @@ function Chat({ username, name }: { username: string; name: string }) {
             return {
               sender: msg.username,
               content,
-              type: msg.type || (isVideo ? "video" : isImage ? "image" : "text"),
+              type:
+                msg.type || (isVideo ? "video" : isImage ? "image" : "text"),
               created_at: msg.created_at,
             };
           });
@@ -115,10 +118,16 @@ function Chat({ username, name }: { username: string; name: string }) {
         body: formData,
       });
 
-      if (!res.ok) throw new Error(`\uC5C5\uB85C\uB4DC \uC2E4\uD328 (status: ${res.status})`);
+      if (!res.ok)
+        throw new Error(
+          `\uC5C5\uB85C\uB4DC \uC2E4\uD328 (status: ${res.status})`
+        );
 
       const data = await res.json();
-      if (!data.url) throw new Error("\uC11C\uBC84 \uC751\uB2F5\uC5D0 \uD30C\uC77C URL\uC774 \uC5C6\uC74C");
+      if (!data.url)
+        throw new Error(
+          "\uC11C\uBC84 \uC751\uB2F5\uC5D0 \uD30C\uC77C URL\uC774 \uC5C6\uC74C"
+        );
 
       const url = `${BACKEND_URL}${data.url}`;
       const isVideo = /\.(mp4|mov|webm)$/i.test(selectedFile.name);
@@ -136,7 +145,9 @@ function Chat({ username, name }: { username: string; name: string }) {
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
       console.error("\uD30C\uC77C \uC804\uC1A1 \uC624\uB958:", error);
-      alert("\uD30C\uC77C \uC5C5\uB85C\uB4DC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uCF58\uC194\uC744 \uD655\uC778\uD574\uC8FC\uC138\uC694.");
+      alert(
+        "\uD30C\uC77C \uC5C5\uB85C\uB4DC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uCF58\uC194\uC744 \uD655\uC778\uD574\uC8FC\uC138\uC694."
+      );
     }
   };
 
@@ -173,12 +184,17 @@ function Chat({ username, name }: { username: string; name: string }) {
           className={`m-0 font-mono text-sm whitespace-pre-wrap break-words overflow-x-auto text-left ${
             shouldTruncate && !isExpanded ? "line-clamp-3" : ""
           }`}
-          style={{ maxHeight: shouldTruncate && !isExpanded ? "5.5em" : "none" }}
+          style={{
+            maxHeight: shouldTruncate && !isExpanded ? "5.5em" : "none",
+          }}
         >
           {content}
         </pre>
         {shouldTruncate && !isExpanded && (
-          <button onClick={() => setExpandedIndex(idx)} className="mt-1 text-blue-600 text-xs underline">
+          <button
+            onClick={() => setExpandedIndex(idx)}
+            className="mt-1 text-blue-600 text-xs underline"
+          >
             전체 보기
           </button>
         )}
@@ -188,11 +204,18 @@ function Chat({ username, name }: { username: string; name: string }) {
 
   return (
     <>
-      <div className={`relative flex flex-col h-screen w-screen p-5 box-border bg-gradient-to-br from-indigo-50 via-white to-pink-50 transition-all ${
-        isDragging ? "border-4 border-dashed border-indigo-400" : ""
-      }`}
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+      <div
+        className={`relative flex flex-col h-screen w-screen p-5 box-border bg-gradient-to-br from-indigo-50 via-white to-pink-50 transition-all ${
+          isDragging ? "border-4 border-dashed border-indigo-400" : ""
+        }`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+        }}
         onDrop={(e) => {
           e.preventDefault();
           const dropped = e.dataTransfer.files?.[0];
@@ -202,10 +225,13 @@ function Chat({ username, name }: { username: string; name: string }) {
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-indigo-700">
-            💬 <span className="font-semibold">{roomOwnerName}</span>님의 채팅방 [{roomId}]
+            💬 <span className="font-semibold">{roomOwnerName}</span>님의 채팅방
+            [{roomId}]
           </h2>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">👥 {participants.length}명</span>
+            <span className="text-sm text-gray-600">
+              👥 {participants.length}명
+            </span>
             <button
               onClick={() => setShowParticipants(true)}
               className="text-sm px-3 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
@@ -217,14 +243,23 @@ function Chat({ username, name }: { username: string; name: string }) {
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden border border-indigo-100 mb-3 p-4 rounded-xl bg-white shadow-inner">
           {messages.map((msg, idx) => (
-            <div key={idx} className={`flex mb-4 ${msg.sender === username ? "justify-end" : "justify-start"}`}>
+            <div
+              key={idx}
+              className={`flex mb-4 ${
+                msg.sender === username ? "justify-end" : "justify-start"
+              }`}
+            >
               <div>
                 {msg.sender !== username && (
-                  <p className="text-sm text-gray-600 mb-1 ml-2">{msg.sender}</p>
+                  <p className="text-sm text-gray-600 mb-1 ml-2">
+                    {msg.sender}
+                  </p>
                 )}
                 <div
                   className={`relative p-3 rounded-2xl max-w-[600px] w-fit overflow-x-auto shadow-md transition break-words ${
-                    msg.sender === username ? "bg-green-100 text-right ml-auto" : "bg-gray-100 text-left"
+                    msg.sender === username
+                      ? "bg-green-100 text-right ml-auto"
+                      : "bg-gray-100 text-left"
                   }`}
                 >
                   {msg.type === "image" ? (
@@ -235,7 +270,11 @@ function Chat({ username, name }: { username: string; name: string }) {
                       onClick={() => setShowImage(msg.content)}
                     />
                   ) : msg.type === "video" ? (
-                    <video src={msg.content} controls className="max-w-full rounded-md" />
+                    <video
+                      src={msg.content}
+                      controls
+                      className="max-w-full rounded-md"
+                    />
                   ) : msg.type === "file" ? (
                     <a
                       href={msg.content}
@@ -300,7 +339,11 @@ function Chat({ username, name }: { username: string; name: string }) {
       {showImage && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
           <div className="relative">
-            <img src={showImage} alt="확대 이미지" className="max-w-full max-h-screen rounded shadow-lg" />
+            <img
+              src={showImage}
+              alt="확대 이미지"
+              className="max-w-full max-h-screen rounded shadow-lg"
+            />
             <button
               onClick={() => setShowImage(null)}
               className="absolute top-2 right-2 px-3 py-1 bg-white text-black rounded shadow"
@@ -320,7 +363,9 @@ function Chat({ username, name }: { username: string; name: string }) {
             </pre>
             <div className="flex justify-end mt-4">
               <button
-                onClick={() => navigator.clipboard.writeText(messages[expandedIndex].content)}
+                onClick={() =>
+                  navigator.clipboard.writeText(messages[expandedIndex].content)
+                }
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 mr-2"
               >
                 복사
