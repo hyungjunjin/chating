@@ -45,10 +45,12 @@ function Admin() {
           setMessages(data);
         } else {
           console.warn("채팅 기록 형식 오류", data);
+          setMessages([]);
         }
       })
       .catch((err) => {
         console.error("메시지 로딩 실패:", err);
+        setMessages([]);
       });
   };
 
@@ -154,7 +156,7 @@ function Admin() {
               <p className="text-gray-500">이 방에는 채팅이 없습니다.</p>
             )
           ) : (
-            <p className="text-gray-500">오른쪽에서 채팅방을 선택하세요.</p>
+            <p className="text-gray-500">왼쪽에서 채팅방을 선택하세요.</p>
           )}
         </div>
       </div>

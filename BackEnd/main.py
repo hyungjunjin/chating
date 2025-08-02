@@ -323,14 +323,15 @@ async def admin_delete_room(room_id: str):
         return {"status": "deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-        
+
 @app.get("/admin/messages/{room_id}")
 async def admin_get_messages_with_names(room_id: str):
     try:
         rows = await app.state.db.fetch("""
-            SELECT m.content, m.type, m.created_at, u.name AS sender
+            SELECT m.content, m.type, m.created_at,
+                   COALESCE(u.name, m.username) AS sender
             FROM messages m
-            JOIN users u ON m.username = u.username
+            LEFT JOIN users u ON m.username = u.username
             WHERE m.room_id = $1
             ORDER BY m.created_at ASC
         """, room_id)
