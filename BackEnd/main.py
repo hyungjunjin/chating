@@ -267,6 +267,21 @@ async def admin_get_all_rooms():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/admin/messages/{room_id}")
+async def admin_get_messages_with_names(room_id: str):
+    try:
+        rows = await app.state.db.fetch("""
+            SELECT m.content, m.type, m.created_at,
+                   COALESCE(u.name, m.username) AS sender
+            FROM messages m
+            LEFT JOIN users u ON m.username = u.username
+            WHERE LOWER(m.room_id) = LOWER($1)
+            ORDER BY m.created_at ASC
+        """, room_id)
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/messages")
 async def save_message(msg: Message):
     try:
@@ -310,31 +325,23 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    if full_path.startswith(("api", "ws", "uploads", "register", "login", "messages", "upload", "check-username", "rooms", "admin")):
+    # 예외로 둘 API 엔드포인트를 명시적으로 나열
+    api_prefixes = [
+        "api", "ws", "uploads", "register", "login", "messages",
+        "upload", "check-username", "rooms",
+        "admin", "admin/login", "admin/rooms", "admin/messages", "admin/room"
+    ]
+    if any(full_path.startswith(p) for p in api_prefixes):
         raise HTTPException(status_code=404, detail="Not Found")
     if INDEX_FILE.exists():
         return FileResponse(INDEX_FILE)
     return {"detail": "Frontend not built"}
+
 @app.delete("/admin/room/{room_id}")
 async def admin_delete_room(room_id: str):
     try:
         await app.state.db.execute("DELETE FROM messages WHERE room_id = $1", room_id)
         await app.state.db.execute("DELETE FROM rooms WHERE room_id = $1", room_id)
         return {"status": "deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/admin/messages/{room_id}")
-async def admin_get_messages_with_names(room_id: str):
-    try:
-        rows = await app.state.db.fetch("""
-            SELECT m.content, m.type, m.created_at,
-                   COALESCE(u.name, m.username) AS sender
-            FROM messages m
-            LEFT JOIN users u ON m.username = u.username
-            WHERE m.room_id = $1
-            ORDER BY m.created_at ASC
-        """, room_id)
-        return [dict(r) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
