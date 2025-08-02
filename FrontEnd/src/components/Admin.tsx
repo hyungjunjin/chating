@@ -38,7 +38,7 @@ function Admin() {
 
   const loadMessages = (roomId: string) => {
     setSelectedRoom(roomId);
-    fetch(`${BACKEND_URL}/messages/${roomId}`)
+    fetch(`${BACKEND_URL}/admin/messages/${roomId}`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -99,7 +99,7 @@ function Admin() {
                     생성자: {room.username} | {new Date(room.created_at).toLocaleString()}
                   </p>
                   <p className="text-sm mt-1">
-                    상태: {" "}
+                    상태:{" "}
                     <span className={room.is_active ? "text-green-600" : "text-red-500"}>
                       {room.is_active ? "활성" : "비활성"}
                     </span>
@@ -133,7 +133,8 @@ function Admin() {
                 {messages.map((msg, idx) => (
                   <li key={idx} className="p-3 border rounded bg-gray-100">
                     <div className="mb-1 text-sm">
-                      <strong className="text-indigo-600">{msg.sender}</strong> | {new Date(msg.created_at).toLocaleString()}
+                      <strong className="text-indigo-600">{msg.sender}</strong> |{" "}
+                      {new Date(msg.created_at).toLocaleString()}
                     </div>
                     {msg.type === "image" ? (
                       <img src={msg.content} alt="이미지" className="max-w-xs rounded" />
