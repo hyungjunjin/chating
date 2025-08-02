@@ -323,7 +323,8 @@ async def admin_delete_room(room_id: str):
         return {"status": "deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-        @app.get("/admin/messages/{room_id}")
+        
+@app.get("/admin/messages/{room_id}")
 async def admin_get_messages_with_names(room_id: str):
     try:
         rows = await app.state.db.fetch("""
